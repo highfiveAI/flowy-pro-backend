@@ -14,17 +14,17 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v3
 
-    - name: Install jq
-      run: sudo apt-get update && sudo apt-get install -y jq
+    # - name: Install jq
+    #   run: sudo apt-get update && sudo apt-get install -y jq
 
-    - name: Update Security Group with GitHub Actions IPs
-      env:
-        AWS_REGION: ap-northeast-2
-        SECURITY_GROUP_ID: ${{ secrets.AWS_SECURITY_GROUP_ID }}
-      run: |
-        aws configure set region $AWS_REGION
-        chmod +x ./update_sg.sh
-        ./update_sg.sh  # 위 스크립트 파일로 저장해서 repo에 포함하거나 직접 넣어도 됨
+    # - name: Update Security Group with GitHub Actions IPs
+    #   env:
+    #     AWS_REGION: ap-northeast-2
+    #     SECURITY_GROUP_ID: ${{ secrets.AWS_SECURITY_GROUP_ID }}
+    #   run: |
+    #     aws configure set region $AWS_REGION
+    #     chmod +x ./update_sg.sh
+    #     ./update_sg.sh  # 위 스크립트 파일로 저장해서 repo에 포함하거나 직접 넣어도 됨
 
     - name: Log in to Docker Hub
       uses: docker/login-action@v2
