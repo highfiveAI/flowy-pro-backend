@@ -33,6 +33,17 @@ jobs:
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
           docker pull handonggil/flowy-pro:latest
+        
           docker stop my-python-app-container || true
+        
+          # 컨테이너 제거 시도
           docker rm my-python-app-container || true
+        
+          # 컨테이너 완전히 제거될 때까지 기다리기
+          while docker ps -a --format '{{.Names}}' | grep -q '^my-python-app-container$'; do
+            echo "컨테이너 제거 대기 중..."
+            sleep 2
+          done
+        
+          # 새 컨테이너 실행
           docker run -d --name my-python-app-container -p 8000:8000 handonggil/flowy-pro:latest
