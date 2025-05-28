@@ -10,6 +10,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
     - name: Install jq
       run: sudo apt-get update && sudo apt-get install -y jq
 
@@ -20,9 +24,6 @@ jobs:
       run: |
         aws configure set region $AWS_REGION
         ./update_sg.sh  # 위 스크립트 파일로 저장해서 repo에 포함하거나 직접 넣어도 됨
-
-    - name: Checkout repo
-      uses: actions/checkout@v3
 
     - name: Log in to Docker Hub
       uses: docker/login-action@v2
