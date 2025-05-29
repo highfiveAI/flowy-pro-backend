@@ -58,7 +58,7 @@ def run_langchain_search(query: str) -> str:
 
 # 모듈이 직접 실행될 때만 테스트 코드를 실행
 if __name__ == "__main__":
-    test_query = "filetype:pdf 이력서 양식 1개 가져와"
+    test_query = "filetype:pdf 이력서 양식 2개 response으로 가져와"
     search_result = run_langchain_search(test_query)
     print("\n[검색 결과 요약]")
     print(search_result)

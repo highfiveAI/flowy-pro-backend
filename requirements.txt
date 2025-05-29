@@ -5,3 +5,8 @@ langchain-community
 openai
 python-dotenv
 google-search-results
+psycopg2-binary
+numpy
+PyPDF2
+tiktoken
+pgvector
