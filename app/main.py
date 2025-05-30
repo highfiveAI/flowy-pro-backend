@@ -1,17 +1,16 @@
 from fastapi import FastAPI, UploadFile, File, Form
-from pydantic import BaseModel
 from app.api.lang_search import run_langchain_search
 from app.models.stt import stt_from_file
 from app.models.tagging import tag_chunks_async
-from app.services.openai_service import get_gpt_response
-from app.services.langchain_service import run_langchain
-from app.services.mcp_service import create_user_context
+from app.api.mcp_api import router as mcp_router
+from app.api.openai_api import router as openai_router
+from app.api.langchain_api import router as langchain_router
 import os
 
 app = FastAPI()
-
-class PromptRequest(BaseModel):
-    prompt: str
+app.include_router(mcp_router)
+app.include_router(openai_router)
+app.include_router(langchain_router)
 
 @app.get("/")
 def read_root():
@@ -38,22 +37,5 @@ async def stt_api(file: UploadFile = File(...), subject: str = Form(None)):
     else:
         print("tag_chunks 조건 불충분", flush=True)
     return {**result, "tagging": tag_result}
-
-# === AI API 테스트용 엔드포인트 ===
-@app.post("/test/openai")
-def test_openai(request: PromptRequest):
-    result = get_gpt_response(request.prompt)
-    return {"result": result}
-
-@app.post("/test/langchain")
-def test_langchain(request: PromptRequest):
-    result = run_langchain(request.prompt)
-    return {"result": result}
-
-@app.post("/test/mcp")
-def test_mcp(request: PromptRequest):
-    # MCP는 예시로 context 생성 결과 반환
-    result = create_user_context("test_user", {"prompt": request.prompt})
-    return {"result": str(result)}
 
     
