@@ -58,5 +58,10 @@ jobs:
             sleep 2
           done
 
-          # 새 컨테이너 실행
-          docker run -d --name my-python-app-container -p 8000:8000 handonggil/flowy-pro:latest
+          docker run -d \
+            --name my-python-app-container \
+            -p 8000:8000 \
+            -e OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
+            -e SERPAPI_API_KEY=${{ secrets.SERPAPI_API_KEY }} \
+            -e CONNECTION_STRING=${{ secrets.CONNECTION_STRING }} \
+            handonggil/flowy-pro:latest
