@@ -10,3 +10,6 @@ numpy
 PyPDF2
 tiktoken
 pgvector
+torch
+transformers
+pydub
