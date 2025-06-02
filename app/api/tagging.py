@@ -4,6 +4,7 @@ import asyncio
 import re
 import json
 from app.api.lang_summary import lang_summary
+from app.api.lang_feedback import feedback_agent
 
 openai_client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -119,9 +120,13 @@ async def tag_chunks_async(subject: str, chunks: list) -> dict:
     for s in sentence_scores:
         print(f"  [{s['index']+1}] 점수: {s['score']} / 이유: {s['reason']} / 문장: {s['sentence']}", flush=True)
 
-    # lang_summary 호출 추가
+    # lang_summary 호출
     summary_result = lang_summary(subject, chunks, sentence_scores)
-    print("[tagging.py] lang_summary result:", summary_result, flush=True)
+    # print("[tagging.py] lang_summary result:", summary_result, flush=True)
+
+    # lang_feedback 호출
+    feedback_result = feedback_agent(subject, chunks, sentence_scores)
+    # print("[tagging.py] lang_feedback result:", feedback_result, flush=True)
 
     return {
         "subject": subject,
