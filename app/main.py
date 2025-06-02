@@ -2,13 +2,11 @@ from fastapi import FastAPI, UploadFile, File, Form
 from app.api.lang_search import run_langchain_search
 from app.models.stt import stt_from_file
 from app.models.tagging import tag_chunks_async
-from app.api.mcp_api import router as mcp_router
 from app.api.openai_api import router as openai_router
 from app.api.langchain_api import router as langchain_router
 import os
 
 app = FastAPI()
-app.include_router(mcp_router)
 app.include_router(openai_router)
 app.include_router(langchain_router)
 
