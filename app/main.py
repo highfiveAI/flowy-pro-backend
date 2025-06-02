@@ -1,8 +1,8 @@
 from fastapi import FastAPI, UploadFile, File, Form
 from pydantic import BaseModel
 from app.api.lang_search import run_langchain_search
-from app.models.stt import stt_from_file
-from app.models.tagging import tag_chunks_async
+from app.api.stt import stt_from_file
+from app.api.tagging import tag_chunks_async
 from app.services.openai_service import get_gpt_response
 from app.services.langchain_service import run_langchain
 from app.services.mcp_service import create_user_context
