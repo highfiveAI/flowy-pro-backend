@@ -12,16 +12,19 @@ class FlowyUser(Base):
     user_login_id = Column(String(50), nullable=False)
     user_password = Column(String(255), nullable=False)
     user_phonenum = Column(String(20), nullable=False)
-    user_company_id = Column(String(36), nullable=False)
+    user_company_id =  Column(UUID(as_uuid=True), ForeignKey('company.company_id'), nullable=False)
     user_dept_name = Column(String(100))
     user_team_name = Column(String(100))
     user_position_id = Column(UUID(as_uuid=True), ForeignKey('company_position.position_id'), nullable=False)
     user_jobname = Column(String(100))
-    user_sysrole_id = Column(String(36), nullable=False)
+    user_sysrole_id = Column(UUID(as_uuid=True), ForeignKey('sysrole.sysrole_id'), nullable=False)
 
     # 관계 정의
     position = relationship("CompanyPosition", back_populates="users")
     interdocs = relationship("Interdoc", back_populates="user", cascade="all, delete-orphan")
     profile_image = relationship("ProfileImg", back_populates="user", uselist=False)
-    signup_logs = relationship("SignupLog", back_populates="signup_request_user")
-    signup_logs = relationship("SignupLog", back_populates="signup_update_user")
+    signup_logs = relationship("SignupLog", back_populates="user")
+    signup_logs = relationship("SignupLog", back_populates="user")
+    sysrole = relationship("Sysrole", back_populates="users")
+    company = relationship("Company", back_populates="users")
+    
