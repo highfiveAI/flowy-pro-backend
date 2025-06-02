@@ -3,7 +3,7 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from app.models.base import Base
-from app.models import flowy_user, company_position, interdoc, profile_img, signup_log, sysrole,company, admin
+from app.models import flowy_user, company_position, interdoc, profile_img, signup_log, sysrole,company, admin, meeting_user, meeting, project_user, project, role, summary_log, task_assign_log
 from alembic import context
 
 # this is the Alembic Config object, which provides

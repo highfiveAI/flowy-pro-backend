@@ -27,4 +27,6 @@ class FlowyUser(Base):
     signup_logs = relationship("SignupLog", back_populates="user")
     sysrole = relationship("Sysrole", back_populates="users")
     company = relationship("Company", back_populates="users")
+    project_users = relationship("ProjectUser", back_populates="user")
+    meeting_users = relationship("FlowyUser", back_populates="user")
     
