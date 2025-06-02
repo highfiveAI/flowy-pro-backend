@@ -23,10 +23,10 @@ class FlowyUser(Base):
     position = relationship("CompanyPosition", back_populates="users")
     interdocs = relationship("Interdoc", back_populates="user", cascade="all, delete-orphan")
     profile_image = relationship("ProfileImg", back_populates="user", uselist=False)
-    signup_logs = relationship("SignupLog", back_populates="user")
-    signup_logs = relationship("SignupLog", back_populates="user")
+    signup_logs = relationship("SignupLog", back_populates="signup_request_user")
+    signup_logs = relationship("SignupLog", back_populates="signup_update_user")
     sysrole = relationship("Sysrole", back_populates="users")
     company = relationship("Company", back_populates="users")
     project_users = relationship("ProjectUser", back_populates="user")
-    meeting_users = relationship("FlowyUser", back_populates="user")
+    meeting_users = relationship("MeetingUser", back_populates="user")
     

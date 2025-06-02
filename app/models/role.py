@@ -12,4 +12,4 @@ class Role(Base):
     role_detail = Column(String(1000), nullable=True)
 
     project_users = relationship("ProjectUser", back_populates="role")
-    meeting_users = relationship("Role", back_populates="role") 
+    meeting_users = relationship("MeetingUser", back_populates="role") 

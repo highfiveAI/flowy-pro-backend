@@ -14,5 +14,5 @@ class SignupLog(Base):
 
 
     # 관계 정의
-    position = relationship("CompanyPosition", back_populates="users")
-    profile_image = relationship("ProfileImg", back_populates="user", uselist=False)
+    signup_request_user = relationship("FlowyUser", back_populates="signup_logs")
+    signup_update_user = relationship("FlowyUser", back_populates="signup_logs")

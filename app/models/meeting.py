@@ -16,6 +16,8 @@ class Meeting(Base):
     meeting_audio_type = Column(String(30), nullable=False)
 
     project = relationship("Project", back_populates="meetings")
-    summary_logs = relationship("Meeting", back_populates="meeting")
-    task_assign_logs = relationship("Meeting", back_populates="meeting")
-    meeting_users = relationship("Meeting", back_populates="meeting")
+    summary_logs = relationship("SummaryLog", back_populates="meeting")
+    task_assign_logs = relationship("TaskAssignLog", back_populates="meeting")
+    meeting_users = relationship("MeetingUser", back_populates="meeting")
+    draft_logs = relationship("DraftLog", back_populates="meeting")
+    feedbacks = relationship("Feedback", back_populates="meeting")
