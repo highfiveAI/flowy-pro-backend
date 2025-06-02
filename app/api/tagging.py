@@ -3,6 +3,7 @@ import os
 import asyncio
 import re
 import json
+from app.api.lang_summary import lang_summary
 
 openai_client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -118,6 +119,10 @@ async def tag_chunks_async(subject: str, chunks: list) -> dict:
     for s in sentence_scores:
         print(f"  [{s['index']+1}] 점수: {s['score']} / 이유: {s['reason']} / 문장: {s['sentence']}", flush=True)
 
+    # lang_summary 호출 추가
+    summary_result = lang_summary(subject, chunks, sentence_scores)
+    print("[tagging.py] lang_summary result:", summary_result, flush=True)
+
     return {
         "subject": subject,
         "chunks": chunks,
@@ -125,5 +130,5 @@ async def tag_chunks_async(subject: str, chunks: list) -> dict:
         "all_sentences": all_sentences,
         "deduped_sentences": deduped_sentences,
         "sentence_scores": sentence_scores,
-        "tags": []  # 실제 태그화 결과는 추후 구현
+        "tags": []
     } 

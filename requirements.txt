@@ -13,3 +13,4 @@ pgvector
 torch
 transformers
 pydub
+langchain-openai

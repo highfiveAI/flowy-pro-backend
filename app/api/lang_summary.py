@@ -1,39 +1,49 @@
-from fastapi import APIRouter, Request
-from app.models.tagging import tag_chunks_async
-from langchain.agents import initialize_agent, Tool, AgentType
-from langchain.llms import OpenAI
-import asyncio
+from langchain_openai import ChatOpenAI
 
-router = APIRouter()
+def lang_summary(subject, chunks, tag_result):
+    llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
-@router.post("/lang-summary")
-async def lang_summary(request: Request):
-    data = await request.json()
-    subject = data.get("subject")
-    chunks = data.get("chunks")
-    tag_result = data.get("tag_result")
-    # tag_result가 없으면 직접 tagging 처리
-    if tag_result is None:
-        tag_result = await tag_chunks_async(subject, chunks)
-
-    # LangChain Agent 예시 (OpenAI LLM 사용)
-    llm = OpenAI(temperature=0)
-    tools = [
-        Tool(
-            name="TagResult",
-            func=lambda x: str(tag_result),
-            description="tag_chunks_async의 결과를 반환"
-        )
+    # 점수 1~3인 문장만 추출
+    filtered_tag = [
+        s for s in tag_result if isinstance(s, dict) and s.get("score", 0) > 0
     ]
-    agent = initialize_agent(
-        tools, llm, agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, verbose=True
-    )
+    # 점수 0인 문장은 문맥 파악용
+    context_only = [
+        s for s in tag_result if isinstance(s, dict) and s.get("score", 0) == 0
+    ]
 
-    # agent 실행 예시
-    agent_output = agent.run("이 회의의 핵심 요약을 해줘.")
+    # 구조화된 요약 프롬프트
+    prompt = f"""
+    너는 회의록 작성 전문가야.
 
-    # 결과를 로그로 출력
+    회의 주제: {subject}
+
+    아래는 회의에서 중요한 문장(점수 1~3)만 추린 리스트야:
+    {filtered_tag}
+
+    이 문장들을 참고해서, 회의 내용을 적절한 구조(예: 주요 논의사항, 결정사항, 추후 과제 등)로 정리해줘.
+    각 구조(섹션)는 회의 내용을 가장 잘 설명할 수 있도록 네가 판단해서 만들어.
+    각 섹션별로 관련 문장(또는 요약)을 넣어줘.
+
+    출력 예시:
+    ## 주요 논의사항
+    - 내용1
+    - 내용2
+
+    ## 결정사항
+    - 내용1
+
+    ## 추후 과제
+    - 내용1
+
+    점수 0인 문장은 참고만 하고, 요약 내용에는 넣지 마.
+    """
+
+    response = llm.invoke(prompt)
+    agent_output = response.content
+
     print("[lang_summary] agent_output:", agent_output, flush=True)
-    print("[lang_summary] tag_result:", tag_result, flush=True)
-
-    return {"agent_output": agent_output, "tag_result": tag_result} 
+    return {
+        "agent_output": agent_output,
+        "tag_result": filtered_tag
+    } 
