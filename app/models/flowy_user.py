@@ -4,7 +4,7 @@ from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from app.models.base import Base  # Base는 declarative_base()로 정의된 객체입니다.
 
-class User(Base):
+class FlowyUser(Base):
     __tablename__ = 'flowy_user'
     user_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_name = Column(String(50), nullable=False)
@@ -15,9 +15,13 @@ class User(Base):
     user_company_id = Column(String(36), nullable=False)
     user_dept_name = Column(String(100))
     user_team_name = Column(String(100))
-    user_position_id = Column(String(36), nullable=False)
+    user_position_id = Column(UUID(as_uuid=True), ForeignKey('company_position.position_id'), nullable=False)
     user_jobname = Column(String(100))
     user_sysrole_id = Column(String(36), nullable=False)
 
     # 관계 정의
-    # profile_image = relationship("ProfileImg", back_populates="user", uselist=False)
+    position = relationship("CompanyPosition", back_populates="users")
+    interdocs = relationship("Interdoc", back_populates="user", cascade="all, delete-orphan")
+    profile_image = relationship("ProfileImg", back_populates="user", uselist=False)
+    signup_logs = relationship("SignupLog", back_populates="signup_request_user")
+    signup_logs = relationship("SignupLog", back_populates="signup_update_user")
