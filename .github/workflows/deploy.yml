@@ -37,6 +37,15 @@ jobs:
       with:
         push: true
         tags: handonggil/flowy-pro:latest
+      # ✅ 여기에 추가하세요 (EC2로 docker-compose.yml 복사)
+    - name: Copy docker-compose.yml to EC2
+      uses: appleboy/scp-action@v0.1.4
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ubuntu
+        key: ${{ secrets.EC2_SSH_KEY }}
+        source: "./docker-compose.yml"
+        target: "~/app"
 
     - name: SSH to EC2 and deploy
       uses: appleboy/ssh-action@v0.1.7
