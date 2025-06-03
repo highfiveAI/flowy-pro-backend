@@ -21,7 +21,7 @@ def read_root():
 def search_endpoint(query: str):
     """Runs the Langchain agent from lang_search.py with the given query."""
     return {"query": query, "response": run_langchain_search(query)}
-
+ 
 @app.post("/stt")
 async def stt_api(file: UploadFile = File(...), subject: str = Form(None)):
     print("=== stt_api called ===", flush=True)
