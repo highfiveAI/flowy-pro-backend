@@ -16,10 +16,20 @@ import os
 from alembic.script.write_hooks import register
 from dotenv import load_dotenv
 
+
+
 load_dotenv()
 
 # Alembic 설정 객체
 config = context.config
+
+database_url = os.getenv("CONNECTION_STRING")
+if database_url:
+    config.set_main_option("sqlalchemy.url", database_url)
+else:
+    raise ValueError("환경변수 CONNECTION_STRING이 설정되어 있지 않습니다.")
+
+
 
 # logging 설정 적용
 if config.config_file_name is not None:
