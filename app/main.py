@@ -38,7 +38,7 @@ async def stt_api(file: UploadFile = File(...), subject: str = Form(None)):
     else:
         print("tag_chunks 조건 불충분", flush=True)
     return {**result, "tagging": tag_result}
-
+ 
 # === AI API 테스트용 엔드포인트 ===
 @app.post("/test/openai")
 def test_openai(request: PromptRequest):
