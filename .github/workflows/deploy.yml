@@ -62,9 +62,3 @@ jobs:
           cd ~/app
           docker-compose pull
           docker-compose up -d --remove-orphans
-
-          echo "🔁 Waiting for DB to be ready..."
-          sleep 10  # PostgreSQL이 준비될 때까지 잠시 대기
-
-          echo "📦 Running Alembic migrations..."
-          docker exec my-python-app-container alembic upgrade head

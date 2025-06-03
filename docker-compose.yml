@@ -12,7 +12,18 @@ services:
       - CONNECTION_STRING=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
     depends_on:
       - db
+      - alembic  # ✅ alembic 서비스 완료 후 실행되도록 설정
     restart: always
+
+  alembic:
+    image: handonggil/flowy-pro:latest
+    container_name: alembic-migration
+    command: alembic upgrade head
+    environment:
+      - CONNECTION_STRING=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      - db
+    restart: "no"  # ✅ 작업 후 자동 재시작하지 않도록 설정
 
   db:
     image: ankane/pgvector
