@@ -5,6 +5,8 @@ import re
 import json
 from app.api.lang_summary import lang_summary
 from app.api.lang_feedback import feedback_agent
+from app.api.lang_role import assign_roles
+from app.api.lang_todo import extract_todos
 
 openai_client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -129,6 +131,14 @@ async def tag_chunks_async(subject: str, chunks: list, attendees_list: list = No
     feedback_result = feedback_agent(subject, chunks, sentence_scores, attendees_list) if attendees_list is not None else feedback_agent(subject, chunks, sentence_scores)
     # print("[tagging.py] lang_feedback result:", feedback_result, flush=True)
 
+    # 역할 분배 agent 호출
+    role_assignment = None
+    if attendees_list is not None:
+        role_assignment = assign_roles(subject, chunks, attendees_list, sentence_scores)
+
+    # 할 일 추출 agent 호출
+    todos_result = extract_todos(subject, chunks, sentence_scores)
+
     return {
         "subject": subject,
         "attendees_list": attendees_list,
@@ -137,5 +147,7 @@ async def tag_chunks_async(subject: str, chunks: list, attendees_list: list = No
         "all_sentences": all_sentences,
         "deduped_sentences": deduped_sentences,
         "sentence_scores": sentence_scores,
-        "tags": []
+        "tags": [],
+        "role_assignment": role_assignment,
+        "todos": todos_result
     } 
