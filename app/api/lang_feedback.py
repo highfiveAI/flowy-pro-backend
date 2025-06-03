@@ -2,7 +2,7 @@ import statistics
 from collections import Counter
 from langchain_openai import ChatOpenAI
 
-def feedback_agent(subject, chunks, tag_result):
+def feedback_agent(subject, chunks, tag_result, attendees_list=None):
     # print(f"[lang_feedback] feedback_agent 호출됨: subject={subject}, chunks={chunks}, tag_result={tag_result}", flush=True)
 
     # 1️⃣ 점수별 글자수 비율 계산
@@ -46,12 +46,21 @@ def feedback_agent(subject, chunks, tag_result):
 
     # 3️⃣ 개선 가이드: agent가 직접 판단하도록 LLM 프롬프트로 생성
     llm = ChatOpenAI(model="gpt-4o", temperature=0)
+    # 참석자 정보 프롬프트용 문자열 생성
+    attendees_list_str = "참석자 정보 없음"
+    if attendees_list and isinstance(attendees_list, list):
+        attendees_list = "\n".join([
+            f"- 이름: {a.get('name', '')}, 이메일: {a.get('email', '')}, 직무: {a.get('role', '')}"
+            for a in attendees_list
+        ])
     # 피드백용 프롬프트
     feedback_prompt = f"""
     너는 회의 피드백 전문가야.
     아래는 회의록 태깅 결과(문장별 점수와 이유)와 점수별 글자수 비율이야.
 
     - 회의 주제: {subject}
+    - 참석자 목록:
+    {attendees_list_str}
     - 점수별 글자수 비율: 3점 {percent_3}%, 2점 {percent_2}%, 1점 {percent_1}%, 0점 {percent_0}%
     - 태깅 결과:
     {[(s.get('score'), s.get('sentence'), s.get('reason')) for s in tag_result if isinstance(s, dict)]}

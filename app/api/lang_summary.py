@@ -1,7 +1,7 @@
 from langchain_openai import ChatOpenAI
 import datetime
 
-def lang_summary(subject, chunks, tag_result):
+def lang_summary(subject, chunks, tag_result, attendees_list=None):
     llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
     # 점수 1~3인 문장만 추출
@@ -20,11 +20,22 @@ def lang_summary(subject, chunks, tag_result):
     week_end = week_start + datetime.timedelta(days=6)
     week_range_str = f"{week_start.strftime('%Y.%m.%d(%a)')} ~ {week_end.strftime('%Y.%m.%d(%a)')}"
 
+    # 참석자 정보 프롬프트용 문자열 생성
+    attendees_list_str = "참석자 정보 없음"
+    if attendees_list and isinstance(attendees_list, list):
+        attendees_list = "\n".join([
+            f"- 이름: {a.get('name', '')}, 이메일: {a.get('email', '')}, 직무: {a.get('role', '')}"
+            for a in attendees_list
+        ])
+
     # 프롬프트: json 구조로만 반환하도록 명확히 지시
     prompt = f"""
     너는 회의록 작성 전문가야.
 
     회의 주제: {subject}
+
+    참석자 목록:
+    {attendees_list_str}
 
     아래는 회의에서 중요한 문장(점수 1~3)만 추린 리스트야:
     {[s['sentence'] for s in filtered_tag]}
