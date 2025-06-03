@@ -14,6 +14,9 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy.ext.compiler import compiles
 import os
 from alembic.script.write_hooks import register
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Alembic 설정 객체
 config = context.config
