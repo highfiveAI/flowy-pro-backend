@@ -2,6 +2,7 @@ fastapi
 uvicorn[standard]
 langchain
 langchain-community
+langchain_openai
 openai
 python-dotenv
 google-search-results
@@ -13,4 +14,6 @@ pgvector
 torch
 transformers
 pydub
-langchain-openai
+SQLAlchemy
+alembic
+python-multipart

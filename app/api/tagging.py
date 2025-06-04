@@ -9,6 +9,7 @@ from app.api.lang_role import assign_roles
 from app.api.lang_todo import extract_todos
 from typing import List, Dict, Any
 
+
 openai_client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 async def gpt_score_sentence_async(subject, prev_sent, target_sent, next_sent):
@@ -79,6 +80,7 @@ def gpt_split_sentences(text: str) -> list:
         print(f"[gpt_split_sentences] 오류: {e}", flush=True)
         return [text]
 
+
 async def tag_chunks_async(subject: str, chunks: list, attendees_list: List[Dict[str, Any]] = None) -> dict:
     print(f"[tag_chunks] 전달받은 subject: {subject}", flush=True)
     print(f"[tag_chunks] 전달받은 attendees_list: {attendees_list}", flush=True)
@@ -123,6 +125,7 @@ async def tag_chunks_async(subject: str, chunks: list, attendees_list: List[Dict
     print("[tag_chunks] 문장별 평가 결과:", flush=True)
     for s in sentence_scores:
         print(f"  [{s['index']+1}] 점수: {s['score']} / 이유: {s['reason']} / 문장: {s['sentence']}", flush=True)
+
 
     # lang_summary 호출
     summary_result = lang_summary(subject, chunks, sentence_scores, attendees_list) if attendees_list is not None else lang_summary(subject, chunks, sentence_scores)

@@ -1,16 +1,12 @@
 from langchain.agents import initialize_agent, Tool
 from langchain.agents.agent_types import AgentType
 from langchain_community.utilities import SerpAPIWrapper
-from langchain_community.chat_models import ChatOpenAI
-from dotenv import load_dotenv
-import os
-
-# .env 로드
-load_dotenv()
+from langchain_openai import ChatOpenAI
+from app.core.config import settings
 
 # API 키 설정
-openai_api_key = os.getenv("OPENAI_API_KEY")
-serperapi_api_key = os.getenv("SERPAPI_API_KEY")
+openai_api_key = settings.OPENAI_API_KEY
+serperapi_api_key = settings.SERPAPI_API_KEY
 
 if not openai_api_key or not serperapi_api_key:
     # 실제 애플리케이션에서는 예외를 발생시키거나 로깅을 하는 것이 좋습니다.
@@ -58,7 +54,7 @@ def run_langchain_search(query: str) -> str:
 
 # 모듈이 직접 실행될 때만 테스트 코드를 실행
 if __name__ == "__main__":
-    test_query = "filetype:pdf 이력서 양식 2개 response으로 가져와"
+    test_query = "filetype:pdf 이력서 양식 2개의 주소값을 결과값으로 가져와"
     search_result = run_langchain_search(test_query)
     print("\n[검색 결과 요약]")
     print(search_result)
