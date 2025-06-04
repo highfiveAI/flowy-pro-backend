@@ -1,12 +1,15 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Depends
-from app.api.lang_search import run_langchain_search
+import os
+from dotenv import load_dotenv
+load_dotenv()
 from app.api.stt import stt_from_file
 from app.api.tagging import tag_chunks_async
-import os
 import json
 from typing import List
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from app.api.v1.api import api_router
+
 
 app = FastAPI()
 
@@ -17,6 +20,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(api_router, prefix="/api/v1")
 
 class Attendee(BaseModel):
     name: str
@@ -41,11 +46,6 @@ def parse_attendees(
 def read_root():
     return {"Hello": "World"}
 
-@app.get("/search/")
-def search_endpoint(query: str):
-    """Runs the Langchain agent from lang_search.py with the given query."""
-    return {"query": query, "response": run_langchain_search(query)}
- 
 @app.post("/stt")
 async def stt_api(
     file: UploadFile = File(...),

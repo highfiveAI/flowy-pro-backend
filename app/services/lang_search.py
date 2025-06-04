@@ -8,6 +8,8 @@ from app.core.config import settings
 openai_api_key = settings.OPENAI_API_KEY
 serperapi_api_key = settings.SERPAPI_API_KEY
 
+
+
 if not openai_api_key or not serperapi_api_key:
     # 실제 애플리케이션에서는 예외를 발생시키거나 로깅을 하는 것이 좋습니다.
     print("Warning: API keys not loaded.")
