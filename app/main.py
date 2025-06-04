@@ -2,8 +2,6 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Dep
 from app.api.lang_search import run_langchain_search
 from app.api.stt import stt_from_file
 from app.api.tagging import tag_chunks_async
-from app.api.openai_api import router as openai_router
-from app.api.langchain_api import router as langchain_router
 import os
 import json
 from typing import List
@@ -19,8 +17,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.include_router(openai_router)
-app.include_router(langchain_router)
 
 class Attendee(BaseModel):
     name: str
