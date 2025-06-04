@@ -1,61 +1,67 @@
 # 역할 분배 agent (lang_role.py)
 from langchain_openai import ChatOpenAI
 import json
+from typing import List, Dict, Any
+import re
 
-def assign_roles(subject, chunks, attendees_list, tag_result):
+def assign_roles(subject: str, full_meeting_sentences: List[str], attendees_list: List[Dict[str, Any]], output: dict) -> dict:
     """
     subject: 회의 주제 (str)
-    attendees_list: [{'name': ..., 'email': ..., 'role': ...}, ...]
-    tag_result: tagging.py에서 반환된 태깅 결과(dict)
+    chunks: 회의 내용 청크 리스트 (List[str])
+    attendees_list: [{'name': ..., 'email': ..., 'role': ...}, ...] (List[Dict[str, Any]])
+    output: lang_todo.py에서 반환된 할일 추출 결과(dict)
     """
-    print(f"[assign_roles] 전달받은 subject: {subject}", flush=True)
+    # print(f"[assign_roles] 전달받은 subject: {subject}", flush=True)
+    # print(f"[assign_roles] 전달받은 attendees_list: {attendees_list}", flush=True)
+    # print(f"[assign_roles] 전달받은 output: {output}", flush=True)
+    print(f"[assign_roles] 전달받은 full_meeting_sentences: {full_meeting_sentences}", flush=True)
     print(f"[assign_roles] 전달받은 attendees_list: {attendees_list}", flush=True)
-    print(f"[assign_roles] 전달받은 tag_result: {tag_result}", flush=True)
-    print(f"[assign_roles] 전달받은 chunks: {chunks}", flush=True)
     llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
     # 참석자 이름 리스트 생성
     attendee_names = ", ".join([a.get("name", "") for a in attendees_list])
-    # 회의 텍스트 전체 생성 (중요 문장만 합침)
-    meeting_text = "\n".join([s["sentence"] for s in tag_result if isinstance(s, dict) and s.get("sentence")])
+    # 회의 원문 텍스트 전체 생성 (청크 경계 포함)
+    meeting_text = "\n".join(full_meeting_sentences)
+    # 할일 리스트 추출 (Action + context)
+    todos = output.get("todos") if isinstance(output, dict) else []
 
-    prompt = f"""
-    너는 회의록 분석을 통해 참석자별 역할을 분배하는 AI Assistant야.
+    prompt = f'''
+너는 아래 "회의 원문 텍스트"와 "할일 리스트 (Action)"를 참고하여 할일을 적절한 담당자에게 배정하는 역할이다.
 
-    [회의 주제]
-    {subject}
+[주요 규칙]
+1️⃣ 회의 원문 텍스트에서 누가 해당 Action과 관련된 발언을 했는지 문맥을 분석한다.
+2️⃣ 담당자가 명확하게 드러나면 그 사람으로 배정한다.
+3️⃣ 명확하지 않지만 직무 기반으로 자연스럽게 추론 가능하면 적절한 참석자에게 배정한다.
+4️⃣ 억지로 추측이 어려운 경우 "미지정" 으로 남긴다.
 
-    [참석자]
-    {attendee_names}
+[참고 정보]
+- 참석자 목록: 이름, 직무, 이메일
+- 할일 리스트: Action + context
+- 회의 원문 텍스트: 전체 회의 내용
 
-    [회의 내용]
-    {meeting_text}
-
-    [역할분배 기준]
-    1️⃣ 실제 업무 실행이 필요한 발언이 나온 경우 → 해당 참석자에게 역할로 배정
-    2️⃣ 의견 제시, 아이디어 제안 → 담당자 또는 실행 담당자에게 할당
-    3️⃣ 직접 실행을 맡겠다고 한 경우 → 해당 참석자에게 명확하게 할당
-    4️⃣ 명확하지 않은 경우에는 '추가 확인 필요'로 표시
-
-    [출력 형식 예시]
-    ```json
+[출력 형식]
+{{
+  "assigned_todos": [
     {{
-      "역할분배": [
-        {{
-          "참석자": "홍길동",
-          "역할": "서비스 UI 개선안 구체화 및 디자인 시안 작성",
-          "비고": ""
-        }},
-        {{
-          "참석자": "김철수",
-          "역할": "백엔드 API 성능 개선 테스트",
-          "비고": "추가 확인 필요"
-        }}
-      ]
-    }}
-    ```
-    반드시 위와 같은 JSON 구조로만 결과를 만들어줘.
-    """
+      "action": "",
+      "assignee": "", // 참석자 이름, 없으면 "미지정"
+      "context": ""
+    }},
+    ...
+  ]
+}}
+
+지금부터 아래 정보를 참고하여 담당자를 배정해라:
+
+[참석자 목록]
+{json.dumps(attendees_list, ensure_ascii=False)}
+
+[할일 리스트]
+{json.dumps(todos, ensure_ascii=False, indent=2)}
+
+[회의 원문 텍스트]
+{meeting_text}
+'''
 
     response = llm.invoke(prompt)
     agent_output = response.content
@@ -63,17 +69,24 @@ def assign_roles(subject, chunks, attendees_list, tag_result):
 
     # JSON 파싱 시도
     try:
-        # 코드블록 제거
-        if agent_output.strip().startswith("```json"):
-            agent_output = agent_output.strip().removeprefix("```json").removesuffix("```")
-        result_json = json.loads(agent_output)
+        agent_output = agent_output.strip()
+        if agent_output.startswith("```json"):
+            agent_output = agent_output.removeprefix("```json").removesuffix("```").strip()
+        # JSON만 추출 (가장 먼저 나오는 { ... } 블록)
+        match = re.search(r'\{.*\}', agent_output, re.DOTALL)
+        if match:
+            agent_output = match.group()
+            result_json = json.loads(agent_output)
+        else:
+            # JSON이 하나도 없거나 빈 응답일 때
+            result_json = {"assigned_todos": [], "error": "넘겨 받은 할일 리스트가 없습니다.", "raw": agent_output}
     except Exception as e:
         print(f"[assign_roles] JSON 파싱 오류: {e}", flush=True)
-        result_json = {"역할분배": [], "error": str(e), "raw": agent_output}
+        result_json = {"assigned_todos": [], "error": str(e), "raw": agent_output}
 
     return {
         "subject": subject,
         "attendees": attendees_list,
-        "tag_result": tag_result,
+        "output": output,
         "assigned_roles": result_json
     } 

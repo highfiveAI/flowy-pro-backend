@@ -7,6 +7,7 @@ from app.api.lang_summary import lang_summary
 from app.api.lang_feedback import feedback_agent
 from app.api.lang_role import assign_roles
 from app.api.lang_todo import extract_todos
+from typing import List, Dict, Any
 
 openai_client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -78,7 +79,7 @@ def gpt_split_sentences(text: str) -> list:
         print(f"[gpt_split_sentences] 오류: {e}", flush=True)
         return [text]
 
-async def tag_chunks_async(subject: str, chunks: list, attendees_list: list = None) -> dict:
+async def tag_chunks_async(subject: str, chunks: list, attendees_list: List[Dict[str, Any]] = None) -> dict:
     print(f"[tag_chunks] 전달받은 subject: {subject}", flush=True)
     print(f"[tag_chunks] 전달받은 attendees_list: {attendees_list}", flush=True)
     print(f"[tag_chunks] 전달받은 chunks:", flush=True)
@@ -131,13 +132,8 @@ async def tag_chunks_async(subject: str, chunks: list, attendees_list: list = No
     feedback_result = feedback_agent(subject, chunks, sentence_scores, attendees_list) if attendees_list is not None else feedback_agent(subject, chunks, sentence_scores)
     # print("[tagging.py] lang_feedback result:", feedback_result, flush=True)
 
-    # 역할 분배 agent 호출
-    role_assignment = None
-    if attendees_list is not None:
-        role_assignment = assign_roles(subject, chunks, attendees_list, sentence_scores)
-
     # 할 일 추출 agent 호출
-    todos_result = extract_todos(subject, chunks, sentence_scores)
+    todos_result = extract_todos(subject, chunks, attendees_list, sentence_scores)
 
     return {
         "subject": subject,
@@ -148,6 +144,5 @@ async def tag_chunks_async(subject: str, chunks: list, attendees_list: list = No
         "deduped_sentences": deduped_sentences,
         "sentence_scores": sentence_scores,
         "tags": [],
-        "role_assignment": role_assignment,
         "todos": todos_result
     } 
