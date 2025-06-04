@@ -16,3 +16,4 @@ transformers
 pydub
 SQLAlchemy
 alembic
+python-multipart
