@@ -3,6 +3,12 @@ import os
 import asyncio
 import re
 import json
+from app.api.lang_summary import lang_summary
+from app.api.lang_feedback import feedback_agent
+from app.api.lang_role import assign_roles
+from app.api.lang_todo import extract_todos
+from typing import List, Dict, Any
+
 
 openai_client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -74,8 +80,10 @@ def gpt_split_sentences(text: str) -> list:
         print(f"[gpt_split_sentences] 오류: {e}", flush=True)
         return [text]
 
-async def tag_chunks_async(subject: str, chunks: list) -> dict:
+
+async def tag_chunks_async(subject: str, chunks: list, attendees_list: List[Dict[str, Any]] = None) -> dict:
     print(f"[tag_chunks] 전달받은 subject: {subject}", flush=True)
+    print(f"[tag_chunks] 전달받은 attendees_list: {attendees_list}", flush=True)
     print(f"[tag_chunks] 전달받은 chunks:", flush=True)
     chunk_sentences = []
     for idx, chunk in enumerate(chunks):
@@ -118,12 +126,26 @@ async def tag_chunks_async(subject: str, chunks: list) -> dict:
     for s in sentence_scores:
         print(f"  [{s['index']+1}] 점수: {s['score']} / 이유: {s['reason']} / 문장: {s['sentence']}", flush=True)
 
+
+    # lang_summary 호출
+    summary_result = lang_summary(subject, chunks, sentence_scores, attendees_list) if attendees_list is not None else lang_summary(subject, chunks, sentence_scores)
+    # print("[tagging.py] lang_summary result:", summary_result, flush=True)
+
+    # lang_feedback 호출
+    feedback_result = feedback_agent(subject, chunks, sentence_scores, attendees_list) if attendees_list is not None else feedback_agent(subject, chunks, sentence_scores)
+    # print("[tagging.py] lang_feedback result:", feedback_result, flush=True)
+
+    # 할 일 추출 agent 호출
+    todos_result = extract_todos(subject, chunks, attendees_list, sentence_scores)
+
     return {
         "subject": subject,
+        "attendees_list": attendees_list,
         "chunks": chunks,
         "chunk_sentences": chunk_sentences,
         "all_sentences": all_sentences,
         "deduped_sentences": deduped_sentences,
         "sentence_scores": sentence_scores,
-        "tags": []  # 실제 태그화 결과는 추후 구현
+        "tags": [],
+        "todos": todos_result
     } 
