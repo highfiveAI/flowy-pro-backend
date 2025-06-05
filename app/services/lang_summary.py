@@ -1,5 +1,6 @@
 from langchain_openai import ChatOpenAI
 import datetime
+import re, json
 
 def lang_summary(subject, chunks, tag_result, attendees_list=None, agenda=None, meeting_date=None):
     llm = ChatOpenAI(model="gpt-4o", temperature=0)
@@ -75,7 +76,6 @@ def lang_summary(subject, chunks, tag_result, attendees_list=None, agenda=None, 
     - 날짜 계산이 애매하면 반드시 회의 날짜({today_str}) 기준으로 표기해.
 
     **반드시 아래와 같은 JSON 구조로만 결과를 만들어줘.**
-    ```json
     {{
       "회의 정리": ["..."],
       "기능 설계 및 개발 계획": ["..."],
@@ -83,15 +83,35 @@ def lang_summary(subject, chunks, tag_result, attendees_list=None, agenda=None, 
       "개발 일정 및 협업": ["..."],
       "팀원들의 확장 욕구 및 사이드 프로젝트 제안": ["..."]
     }}
-    ```
+
     항목명, 항목 개수, 순서 등은 회의 내용에 맞게 자유롭게 정해도 되지만 반드시 JSON 구조로만 반환해.
     """
 
     response = llm.invoke(prompt)
     agent_output = response.content
 
+    # JSON 파싱 시도 (코드블록 제거)
+    try:
+        content = agent_output.strip()
+        if content.startswith("```json"):
+            content = content.removeprefix("```json").removesuffix("```").strip()
+        match = re.search(r'\{.*\}', content, re.DOTALL)
+        if match:
+            content = match.group()
+            result_json = json.loads(content)
+            # summary 키가 있으면 그 값만, 없으면 전체 딕셔너리 반환
+            if "summary" in result_json and isinstance(result_json["summary"], dict):
+                summary_json = result_json["summary"]
+            else:
+                summary_json = result_json
+        else:
+            summary_json = {}
+    except Exception as e:
+        print(f"[lang_summary] JSON 파싱 오류: {e}", flush=True)
+        summary_json = {}
+
     print("[lang_summary] agent_output:", agent_output, flush=True)
     return {
-        "agent_output": agent_output,
-        "tag_result": filtered_tag
+        "tag_result": filtered_tag,
+        "agent_output": summary_json
     } 
