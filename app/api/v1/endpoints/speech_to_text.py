@@ -70,7 +70,7 @@ async def stt_api(
     tag_result = None
     if subject and "chunks" in result:
         print("calling tag_chunks...", flush=True)
-        tag_result = await tag_chunks_async(subject, result["chunks"], attendees_list)
+        tag_result = await tag_chunks_async(subject, result["chunks"], attendees_list, agenda, meeting_date)
     else:
         print("tag_chunks 조건 불충분", flush=True)
     return {

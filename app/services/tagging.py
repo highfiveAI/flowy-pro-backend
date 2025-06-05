@@ -8,6 +8,8 @@ from app.services.lang_feedback import feedback_agent
 from app.services.lang_role import assign_roles
 from app.services.lang_todo import extract_todos
 from typing import List, Dict, Any
+from app.services.meeting_db import insert_summary_log, insert_task_assign_log, insert_feedback_log
+from sqlalchemy.orm import Session
 
 
 openai_client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -81,7 +83,7 @@ def gpt_split_sentences(text: str) -> list:
         return [text]
 
 
-async def tag_chunks_async(subject: str, chunks: list, attendees_list: List[Dict[str, Any]] = None, agenda: str = None, meeting_date: str = None) -> dict:
+async def tag_chunks_async(subject: str, chunks: list, attendees_list: List[Dict[str, Any]] = None, agenda: str = None, meeting_date: str = None, db: Session = None, meeting_id: str = None) -> dict:
     print(f"[tag_chunks] 전달받은 subject: {subject}", flush=True)
     print(f"[tag_chunks] 전달받은 attendees_list: {attendees_list}", flush=True)
     print(f"[tag_chunks] 전달받은 agenda: {agenda}", flush=True)
@@ -139,6 +141,12 @@ async def tag_chunks_async(subject: str, chunks: list, attendees_list: List[Dict
     todos_result = extract_todos(subject, chunks, attendees_list, sentence_scores, agenda, meeting_date)
     assigned_roles = todos_result.get("assigned_roles")
     
+    # DB 저장 (db와 meeting_id가 모두 있을 때만)
+    if db is not None and meeting_id is not None:
+        insert_summary_log(db, meeting_id, summary_result["summary"] if isinstance(summary_result, dict) and "summary" in summary_result else summary_result)
+        insert_task_assign_log(db, meeting_id, assigned_roles)
+        insert_feedback_log(db, meeting_id, feedback_result["feedback"] if isinstance(feedback_result, dict) and "feedback" in feedback_result else feedback_result)
+
     return {
         "subject": subject,
         "attendees_list": attendees_list,
