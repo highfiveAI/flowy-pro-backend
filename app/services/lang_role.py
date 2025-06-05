@@ -4,7 +4,7 @@ import json
 from typing import List, Dict, Any
 import re
 
-def assign_roles(subject: str, full_meeting_sentences: List[str], attendees_list: List[Dict[str, Any]], output: dict) -> dict:
+def assign_roles(subject: str, full_meeting_sentences: List[str], attendees_list: List[Dict[str, Any]], output: dict, agenda: str = None, meeting_date: str = None) -> dict:
     """
     subject: 회의 주제 (str)
     chunks: 회의 내용 청크 리스트 (List[str])
@@ -28,11 +28,18 @@ def assign_roles(subject: str, full_meeting_sentences: List[str], attendees_list
     prompt = f'''
 너는 아래 "회의 원문 텍스트"와 "할일 리스트 (Action)"를 참고하여 할일을 적절한 담당자에게 배정하는 역할이다.
 
+[회의 정보]
+- 회의 주제: {subject}
+- 회의 안건: {agenda if agenda else "안건 없음"}
+
 [주요 규칙]
 1️⃣ 회의 원문 텍스트에서 누가 해당 Action과 관련된 발언을 했는지 문맥을 분석한다.
 2️⃣ 담당자가 명확하게 드러나면 그 사람으로 배정한다.
 3️⃣ 명확하지 않지만 직무 기반으로 자연스럽게 추론 가능하면 적절한 참석자에게 배정한다.
 4️⃣ 억지로 추측이 어려운 경우 "미지정" 으로 남긴다.
+
+[참고 사항]
+- 회의 주제와 (안건이 있는 경우) 회의 안건을 참고하여, 해당 회의 맥락과 참석자의 직무/발언을 고려해 Action의 담당자를 정확하게 배정하라.
 
 [참고 정보]
 - 참석자 목록: 이름, 직무, 이메일
@@ -88,5 +95,7 @@ def assign_roles(subject: str, full_meeting_sentences: List[str], attendees_list
         "subject": subject,
         "attendees": attendees_list,
         "output": output,
-        "assigned_roles": result_json
+        "assigned_roles": result_json,
+        "agenda": agenda,
+        "meeting_date": meeting_date
     } 
