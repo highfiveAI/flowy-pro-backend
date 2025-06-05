@@ -3,11 +3,13 @@ import os
 import asyncio
 import re
 import json
-from app.api.lang_summary import lang_summary
-from app.api.lang_feedback import feedback_agent
-from app.api.lang_role import assign_roles
-from app.api.lang_todo import extract_todos
+from app.services.lang_summary import lang_summary
+from app.services.lang_feedback import feedback_agent
+from app.services.lang_role import assign_roles
+from app.services.lang_todo import extract_todos
 from typing import List, Dict, Any
+from app.services.meeting_db import insert_summary_log, insert_task_assign_log, insert_feedback_log
+from sqlalchemy.orm import Session
 
 
 openai_client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -81,9 +83,11 @@ def gpt_split_sentences(text: str) -> list:
         return [text]
 
 
-async def tag_chunks_async(subject: str, chunks: list, attendees_list: List[Dict[str, Any]] = None) -> dict:
+async def tag_chunks_async(subject: str, chunks: list, attendees_list: List[Dict[str, Any]] = None, agenda: str = None, meeting_date: str = None, db: Session = None, meeting_id: str = None) -> dict:
     print(f"[tag_chunks] 전달받은 subject: {subject}", flush=True)
     print(f"[tag_chunks] 전달받은 attendees_list: {attendees_list}", flush=True)
+    print(f"[tag_chunks] 전달받은 agenda: {agenda}", flush=True)
+    print(f"[tag_chunks] 전달받은 meeting_date: {meeting_date}", flush=True)
     print(f"[tag_chunks] 전달받은 chunks:", flush=True)
     chunk_sentences = []
     for idx, chunk in enumerate(chunks):
@@ -128,15 +132,20 @@ async def tag_chunks_async(subject: str, chunks: list, attendees_list: List[Dict
 
 
     # lang_summary 호출
-    summary_result = lang_summary(subject, chunks, sentence_scores, attendees_list) if attendees_list is not None else lang_summary(subject, chunks, sentence_scores)
-    # print("[tagging.py] lang_summary result:", summary_result, flush=True)
-
+    summary_result = lang_summary(subject, chunks, sentence_scores, attendees_list, agenda, meeting_date) if attendees_list is not None else lang_summary(subject, chunks, sentence_scores, None, agenda, meeting_date)
+    # print("[tagging.py] lang_summary result:", summary_result, flush=True) 
     # lang_feedback 호출
-    feedback_result = feedback_agent(subject, chunks, sentence_scores, attendees_list) if attendees_list is not None else feedback_agent(subject, chunks, sentence_scores)
+    feedback_result = feedback_agent(subject, chunks, sentence_scores, attendees_list, agenda, meeting_date) if attendees_list is not None else feedback_agent(subject, chunks, sentence_scores, None, agenda, meeting_date)
     # print("[tagging.py] lang_feedback result:", feedback_result, flush=True)
-
     # 할 일 추출 agent 호출
-    todos_result = extract_todos(subject, chunks, attendees_list, sentence_scores)
+    todos_result = extract_todos(subject, chunks, attendees_list, sentence_scores, agenda, meeting_date)
+    assigned_roles = todos_result.get("assigned_roles")
+    
+    # DB 저장 (db와 meeting_id가 모두 있을 때만)
+    if db is not None and meeting_id is not None:
+        insert_summary_log(db, meeting_id, summary_result["summary"] if isinstance(summary_result, dict) and "summary" in summary_result else summary_result)
+        insert_task_assign_log(db, meeting_id, assigned_roles)
+        insert_feedback_log(db, meeting_id, feedback_result["feedback"] if isinstance(feedback_result, dict) and "feedback" in feedback_result else feedback_result)
 
     return {
         "subject": subject,
@@ -146,6 +155,9 @@ async def tag_chunks_async(subject: str, chunks: list, attendees_list: List[Dict
         "all_sentences": all_sentences,
         "deduped_sentences": deduped_sentences,
         "sentence_scores": sentence_scores,
-        "tags": [],
-        "todos": todos_result
+        "summary": summary_result,      # <- 요약 agent 결과
+        "feedback": feedback_result,    # <- 피드백 agent 결과
+        "assigned_roles": assigned_roles,
+        "agenda": agenda,
+        "meeting_date": meeting_date
     } 

@@ -1,7 +1,8 @@
 from langchain_openai import ChatOpenAI
 import datetime
+import re, json
 
-def lang_summary(subject, chunks, tag_result, attendees_list=None):
+def lang_summary(subject, chunks, tag_result, attendees_list=None, agenda=None, meeting_date=None):
     llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
     # 점수 1~3인 문장만 추출
@@ -13,12 +14,34 @@ def lang_summary(subject, chunks, tag_result, attendees_list=None):
         s for s in tag_result if isinstance(s, dict) and s.get("score", 0) == 0
     ]
 
-    # 오늘 날짜와 이번주 범위 계산
-    today = datetime.date.today()
-    today_str = today.strftime('%Y.%m.%d(%a)')
-    week_start = today - datetime.timedelta(days=today.weekday())
-    week_end = week_start + datetime.timedelta(days=6)
-    week_range_str = f"{week_start.strftime('%Y.%m.%d(%a)')} ~ {week_end.strftime('%Y.%m.%d(%a)')}"
+    # meeting_date를 기반으로 날짜 계산
+    if meeting_date:
+        try:
+            # meeting_date에서 날짜 부분만 추출 (시간 제외)
+            meeting_date_only = meeting_date.split()[0]
+            # YYYY-MM-DD 형식으로 파싱
+            meeting_date_obj = datetime.datetime.strptime(meeting_date_only, '%Y-%m-%d').date()
+            # YYYY.MM.DD(요일) 형식으로 변환
+            today_str = meeting_date_obj.strftime('%Y.%m.%d(%a)')
+            # 해당 주의 시작일과 종료일 계산
+            week_start = meeting_date_obj - datetime.timedelta(days=meeting_date_obj.weekday())
+            week_end = week_start + datetime.timedelta(days=6)
+            week_range_str = f"{week_start.strftime('%Y.%m.%d(%a)')} ~ {week_end.strftime('%Y.%m.%d(%a)')}"
+        except Exception as e:
+            print(f"[lang_summary] 날짜 파싱 오류: {e}", flush=True)
+            # 오류 발생 시 현재 날짜 사용
+            today = datetime.date.today()
+            today_str = today.strftime('%Y.%m.%d(%a)')
+            week_start = today - datetime.timedelta(days=today.weekday())
+            week_end = week_start + datetime.timedelta(days=6)
+            week_range_str = f"{week_start.strftime('%Y.%m.%d(%a)')} ~ {week_end.strftime('%Y.%m.%d(%a)')}"
+    else:
+        # meeting_date가 없는 경우 현재 날짜 사용
+        today = datetime.date.today()
+        today_str = today.strftime('%Y.%m.%d(%a)')
+        week_start = today - datetime.timedelta(days=today.weekday())
+        week_end = week_start + datetime.timedelta(days=6)
+        week_range_str = f"{week_start.strftime('%Y.%m.%d(%a)')} ~ {week_end.strftime('%Y.%m.%d(%a)')}"
 
     # 참석자 정보 프롬프트용 문자열 생성
     attendees_list_str = "참석자 정보 없음"
@@ -50,10 +73,9 @@ def lang_summary(subject, chunks, tag_result, attendees_list=None):
     일정, 날짜, 기간 등 시간 관련 표현이 '오늘', '이번주 내', '내일', '다음주' 등 상대적 표현으로 등장하면 반드시 실제 날짜로 변환해서 괄호 안에 명확하게 표기해.
     - 예시: 오늘 → 오늘({today_str}), 이번주 내 → 이번주 내({week_range_str})
     - 만약 '오늘'이 여러 번 등장하면 모두 실제 날짜로 변환해서 표기해.
-    - 날짜 계산이 애매하면 반드시 오늘 날짜({today_str}) 기준으로 표기해.
+    - 날짜 계산이 애매하면 반드시 회의 날짜({today_str}) 기준으로 표기해.
 
     **반드시 아래와 같은 JSON 구조로만 결과를 만들어줘.**
-    ```json
     {{
       "회의 정리": ["..."],
       "기능 설계 및 개발 계획": ["..."],
@@ -61,15 +83,35 @@ def lang_summary(subject, chunks, tag_result, attendees_list=None):
       "개발 일정 및 협업": ["..."],
       "팀원들의 확장 욕구 및 사이드 프로젝트 제안": ["..."]
     }}
-    ```
+
     항목명, 항목 개수, 순서 등은 회의 내용에 맞게 자유롭게 정해도 되지만 반드시 JSON 구조로만 반환해.
     """
 
     response = llm.invoke(prompt)
     agent_output = response.content
 
+    # JSON 파싱 시도 (코드블록 제거)
+    try:
+        content = agent_output.strip()
+        if content.startswith("```json"):
+            content = content.removeprefix("```json").removesuffix("```").strip()
+        match = re.search(r'\{.*\}', content, re.DOTALL)
+        if match:
+            content = match.group()
+            result_json = json.loads(content)
+            # summary 키가 있으면 그 값만, 없으면 전체 딕셔너리 반환
+            if "summary" in result_json and isinstance(result_json["summary"], dict):
+                summary_json = result_json["summary"]
+            else:
+                summary_json = result_json
+        else:
+            summary_json = {}
+    except Exception as e:
+        print(f"[lang_summary] JSON 파싱 오류: {e}", flush=True)
+        summary_json = {}
+
     print("[lang_summary] agent_output:", agent_output, flush=True)
     return {
-        "agent_output": agent_output,
-        "tag_result": filtered_tag
+        "tag_result": filtered_tag,
+        "agent_output": summary_json
     } 

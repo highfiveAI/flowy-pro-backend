@@ -3,11 +3,11 @@ import os
 import json
 import re
 from typing import List, Dict, Any
-from app.api.lang_role import assign_roles
+from app.services.lang_role import assign_roles
 
 openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def extract_todos(subject: str, chunks: List[str], attendees_list: List[Dict[str, Any]], sentence_scores: List[Dict[str, Any]]) -> Dict[str, Any]:
+def extract_todos(subject: str, chunks: List[str], attendees_list: List[Dict[str, Any]], sentence_scores: List[Dict[str, Any]], agenda: str = None, meeting_date: str = None) -> Dict[str, Any]:
     """
     회의 내용에서 할 일을 추출하는 함수
     
@@ -16,6 +16,8 @@ def extract_todos(subject: str, chunks: List[str], attendees_list: List[Dict[str
         chunks (List[str]): 회의 내용 청크 리스트
         attendees_list (List[Dict[str, Any]]): 참석자 리스트 (이름/직무/이메일 포함)
         sentence_scores (List[Dict[str, Any]]): 문장별 점수와 평가 정보
+        agenda (str, optional): 회의 안건
+        meeting_date (str, optional): 회의 일시
         
     Returns:
         Dict[str, Any]: 추출된 할 일 목록과 역할분배 결과 등
@@ -32,6 +34,10 @@ def extract_todos(subject: str, chunks: List[str], attendees_list: List[Dict[str
 이 프롬프트의 목적은 회의록에서 "실제 실행해야 하는 Action"만 추출하는 것이다.  
 회의에서 논의된 문제점, 아이디어, 이슈 정리는 Action이 아니다 (이미 요약 Agent에서 처리된다).
 
+[회의 정보]
+- 회의 주제: {subject}
+- 회의 안건: {agenda if agenda else "안건 없음"}
+
 [주요 규칙]
 1️⃣ "문제점/이슈/아이디어 정리"는 Action이 아니다 → 추출 금지
 2️⃣ "누가 무엇을 하겠다 / 확인하겠다 / 수정하겠다 / 검토하겠다" 와 같이 *구체적인 수행 의지가 자연스럽게 드러난 경우* Action 으로 추출한다.
@@ -47,6 +53,9 @@ def extract_todos(subject: str, chunks: List[str], attendees_list: List[Dict[str
 - "회의에서 실제로 실행 책임이 확정되지 않은 것"은 Action으로 추출 금지
 - **이 문장에서 "수행하고자 하는 의지가 명확하게 보이는지" 반드시 판단하라. → 명확한 수행 의지가 없는 경우 Action으로 추출하지 않는다.**
 - Action으로 추출할지 말지는 "수행 의지 여부"를 가장 우선 기준으로 삼는다.
+
+[참고 사항]
+- 회의 주제와 (안건이 있는 경우) 회의 안건을 참고하여, 해당 회의 맥락에서 실제 실행해야 하는 Action만 정확하게 추출하라.
 
 [빈 경우 출력 규칙]
 - 만약 회의 대화록에서 "구체적인 실행 업무 (Action)"가 전혀 발견되지 않는 경우, 아래 형식으로 출력한다:
@@ -142,10 +151,12 @@ def extract_todos(subject: str, chunks: List[str], attendees_list: List[Dict[str
 
         # 역할분배 agent 호출 (chunks 대신 full_meeting_sentences 전달)
         # 단 한 번만 호출되도록 보장
-        assigned_roles = assign_roles(subject, full_meeting_sentences, attendees_list, output)
+        assigned_roles = assign_roles(subject, full_meeting_sentences, attendees_list, output, agenda, meeting_date)
         return {
             "todos_result": output,
-            "assigned_roles": assigned_roles
+            "assigned_roles": assigned_roles,
+            "agenda": agenda,
+            "meeting_date": meeting_date
         }
         
     except Exception as e:
@@ -154,5 +165,7 @@ def extract_todos(subject: str, chunks: List[str], attendees_list: List[Dict[str
             "todos": [],
             "summary": "할 일 추출 중 오류가 발생했습니다.",
             "total_count": 0,
-            "error": str(e)
+            "error": str(e),
+            "agenda": agenda,
+            "meeting_date": meeting_date
         } 
