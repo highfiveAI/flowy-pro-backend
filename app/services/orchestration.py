@@ -51,17 +51,29 @@ def super_agent_for_meeting(meeting_text: str) -> str:
         
         # 검색 키워드 추출 프롬프트
         extract_prompt = f"""
-다음 회의 내용을 기반으로 필요한 문서 양식을 검색하기 위한 검색 키워드를 작성한 후, 해당 키워드로 실제 검색하여 관련 문서 링크를 포함한 문장을 작성해주세요.
+    너는 웹 검색 결과를 기반으로 회의에서 필요한 자료를 찾는 LLM 에이전트야.
 
-**주의:** 결과 문장은 반드시 하나 이상의 실제 링크(URL)를 포함해야 하며, "해결 방법이 존재할 수 있습니다" 같은 일반적인 문구는 사용하지 마세요.
+    다음 회의 내용을 바탕으로, 문서나 가이드가 필요한 경우에는:
+    1. 필요한 키워드를 생성하고,
+    2. 해당 키워드로 웹 검색 결과(Observation)를 분석해서,
+    3. Final Answer에는 반드시 실제 URL을 **하나 이상 포함된 문장**으로 작성해야 해.
 
-예시:
-- 검색 키워드: "filetype:pdf 제안서 양식"
-- 결과: 제안서 양식을 참고할 수 있는 링크는 다음과 같습니다: https://example.com/proposal-template.pdf
+    **중요 규칙:**
+    - Final Answer에는 `https://`로 시작하는 실제 링크(URL)를 반드시 넣어야 해. 없는 경우 오류로 간주함.
+    - `https://example.com/...` 과 같은 예시 URL을 넣으면 안 됨.
+    - 일반적인 설명, 요약, 의도 파악 말고, 실제 링크만 포함해.
+    - 예외 없이 Observation에서 나온 실제 링크만 사용해야 함.
 
-회의 내용:
-{meeting_text}
+
+
+    회의 내용:
+    {meeting_text}
+
+    너의 응답은 다음 형식을 따라야 해:
+    - 검색 키워드: ...
+    - Final Answer: [링크 포함된 설명 문장]
 """
+
         keyword = llm.predict(extract_prompt)
         print(f"[상위 에이전트] 검색 키워드: {keyword}")
 

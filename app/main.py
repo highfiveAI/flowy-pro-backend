@@ -1,35 +1,34 @@
 from fastapi import FastAPI
+# , UploadFile, File, Form, HTTPException, Request, Depends
 import os
 from dotenv import load_dotenv
 load_dotenv()
+# from app.api.stt import stt_from_file
+# from app.api.tagging import tag_chunks_async
+# import json
+# from typing import List
+# from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.api import api_router
-# import uvicorn
 
-app = FastAPI(
-    title="FlowyPro API",
-    description="FlowyPro 내부 문서 추천 시스템 API",
-    version="1.0.0"
-)
 
-app.include_router(api_router, prefix="/api")
+app = FastAPI()
 
-# CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # React 개발 서버
+    allow_origins=["*"],  # 또는 ["http://localhost:5173"]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+app.include_router(api_router, prefix="/api/v1")
+
+
+
 
 @app.get("/")
-async def root():
-    """API 상태 확인용 엔드포인트"""
-    return {"status": "running", "service": "FlowyPro Document Recommendation API"}
-    
-# if __name__ == "__main__":
-    # uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
+def read_root():
+    return {"Hello": "World"}
 
     

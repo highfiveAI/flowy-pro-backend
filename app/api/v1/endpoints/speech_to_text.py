@@ -90,6 +90,7 @@ async def stt_api(
         "tagging": tag_result, 
         "attendees": attendees_list,
         "agenda": agenda,
-        "meeting_date": meeting_date
+        "meeting_date": meeting_date,
+        "search_result": urls
     }
 
