@@ -31,7 +31,9 @@ def parse_attendees(
 @router.post("/")
 async def stt_api(
     file: UploadFile = File(...),
-    subject: str = Form(None),
+    subject: str = Form(...),
+    agenda: str = Form(None),
+    meeting_date: str = Form(...),
     attendees_name: List[str] = Form(...),
     attendees_email: List[str] = Form(...),
     attendees_role: List[str] = Form(...)
@@ -71,4 +73,10 @@ async def stt_api(
         tag_result = await tag_chunks_async(subject, result["chunks"], attendees_list)
     else:
         print("tag_chunks 조건 불충분", flush=True)
-    return {**result, "tagging": tag_result, "attendees": attendees_list}
+    return {
+        **result, 
+        "tagging": tag_result, 
+        "attendees": attendees_list,
+        "agenda": agenda,
+        "meeting_date": meeting_date
+    }
