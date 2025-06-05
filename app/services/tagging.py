@@ -3,10 +3,10 @@ import os
 import asyncio
 import re
 import json
-from app.api.lang_summary import lang_summary
-from app.api.lang_feedback import feedback_agent
-from app.api.lang_role import assign_roles
-from app.api.lang_todo import extract_todos
+from app.services.lang_summary import lang_summary
+from app.services.lang_feedback import feedback_agent
+from app.services.lang_role import assign_roles
+from app.services.lang_todo import extract_todos
 from typing import List, Dict, Any
 
 

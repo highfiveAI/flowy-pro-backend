@@ -1,7 +1,7 @@
 from langchain.agents import Tool, initialize_agent
 from langchain.agents.agent_types import AgentType
 from langchain_community.chat_models import ChatOpenAI
-from app.api.lang_search import run_langchain_search
+from app.services.lang_search import run_langchain_search
 from app.core.config import settings
 
 openai_api_key = settings.OPENAI_API_KEY

@@ -3,7 +3,7 @@ import os
 import json
 import re
 from typing import List, Dict, Any
-from app.api.lang_role import assign_roles
+from app.services.lang_role import assign_roles
 
 openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
