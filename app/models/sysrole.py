@@ -12,4 +12,5 @@ class Sysrole(Base):
     sysrole_detail = Column(String(1000), nullable=False)
     permissions = Column(Text, nullable=False)
 
+    admins = relationship("Admin", back_populates="sysrole")
     users = relationship("FlowyUser", back_populates="sysrole")
