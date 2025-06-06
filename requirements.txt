@@ -46,12 +46,14 @@ numpy==2.2.6
 openai==1.82.0
 orjson==3.10.18
 packaging==24.2
+passlib[bcrypt]
 pgvector==0.4.1
 propcache==0.3.1
 psycopg2-binary==2.9.10
 pydantic==2.11.5
 pydantic-settings==2.9.1
 pydantic_core==2.33.2
+pydantic[email]
 pydub==0.25.1
 PyPDF2==3.0.1
 python-dotenv==1.1.0
