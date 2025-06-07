@@ -15,15 +15,21 @@ from app.api.v1.api import api_router
 
 app = FastAPI()
 
+# 허용할 프론트엔드 주소 (Vite는 보통 5173 포트)
+origins = [
+    "http://localhost:5173",  # Vite dev server
+]
+
+# CORS 미들웨어 추가
+app.add_middleware(SessionMiddleware, secret_key="your-session-secret")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 또는 ["http://localhost:5173"]
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.add_middleware(SessionMiddleware, secret_key="your-session-secret")
 
 app.include_router(api_router, prefix="/api/v1")
 

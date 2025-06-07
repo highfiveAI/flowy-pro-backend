@@ -1,26 +1,62 @@
 # routers/user.py
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
 from app.core.security import verify_password
-from app.schemas.signup_info import UserCreate, LoginInfo
+from app.core.config import settings
+from app.schemas.signup_info import SocialUserCreate, UserCreate, LoginInfo
 from app.crud.crud_user import create_user, authenticate_user, only_authenticate_email
 from app.api.deps import get_db_session
 from app.services.auth import create_access_token, verify_token
 from app.services.google_auth import oauth
+from jose import jwt, JWTError
+
+SECRET_KEY = settings.SECRET_KEY 
+ALGORITHM = "HS256"
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/users/jwtlogin")
 
+@router.post("/social_signup")
+def social_signup(request: Request, user_data: SocialUserCreate, db: Session = Depends(get_db_session)):
+    token = request.cookies.get("signup_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="토큰이 없습니다")
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email = payload.get("email")
+        name = payload.get("sub")
+        if not email:
+            raise HTTPException(status_code=400, detail="이메일 정보가 없습니다")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="유효하지 않은 토큰입니다")
+
+    # 프론트에서 받은 추가 정보 + 소셜에서 가져온 정보 합치기
+    new_user = UserCreate(
+        email=email,
+        name=name,
+        login_id= user_data.login_id,
+        password= user_data.password,
+        phone= user_data.phone,
+        company= user_data.company,
+        department= user_data.department,
+        team= user_data.team,
+        position= user_data.position,
+        job= user_data.job,
+        sysrole= user_data.sysrole
+    )
+
+    return create_user(db, new_user)
 
 @router.post("/signup")
 def signup(user: UserCreate, db: Session = Depends(get_db_session)):
     return create_user(db, user)
 
 @router.post("/login")
-def login(user: LoginInfo, db: Session = Depends(get_db_session)):
+def login(user: LoginInfo, response: Response, db: Session = Depends(get_db_session)):
     auth_user = authenticate_user(db, user.email, user.password)
     
     if not auth_user:
@@ -30,10 +66,20 @@ def login(user: LoginInfo, db: Session = Depends(get_db_session)):
         data={"sub": auth_user.user_name},
         expires_delta=timedelta(minutes=30)
     )
+
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,       # JavaScript에서 접근 불가
+        secure=False,        # 배포 시에는 반드시 True (HTTPS에서만 전송)
+        samesite="lax",      # 또는 "strict", "none"
+        max_age=3600,        # 쿠키 유지 시간 (초) – 1시간
+        path="/",            # 쿠키가 적용될 경로
+    )
     
     return {
         "message": "Login successful",
-        "access_token": access_token,
+        # "access_token": access_token,
         "token_type": "bearer"
     }
 
@@ -57,6 +103,16 @@ def read_me(token: str = Depends(oauth2_scheme)):
     username = verify_token(token)
     return {"username": username}
 
+@router.get("/auth/check")
+async def auth_check(request: Request):
+    token = request.cookies.get("access_token")
+    if not token or not verify_token(token):
+        raise HTTPException(status_code=401, detail="인증 실패")
+    username = verify_token(token)
+
+    # 인증 성공 시 필요한 사용자 정보 반환 가능
+    return JSONResponse(content={"authenticated": True, "user": username })
+
 
 @router.get("/auth/google/login")
 async def google_login(request: Request):
@@ -64,7 +120,7 @@ async def google_login(request: Request):
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 @router.get("/auth/google/callback")
-async def google_callback(request: Request, db: Session = Depends(get_db_session)):
+async def google_callback(request: Request, response: Response, db: Session = Depends(get_db_session)):
     # 1) 구글에서 온 authorization code를 받아서 access token 요청
     token = await oauth.google.authorize_access_token(request)
     print(token)
@@ -82,20 +138,46 @@ async def google_callback(request: Request, db: Session = Depends(get_db_session
     email = user_info.get("email")
     name = user_info.get("name")
 
-    request.session['email'] = email
-    print(request.session.get('email'))
-    print(name)
+    # request.session['email'] = email
+    # print(request.session.get('email'))
+    # print(name)
 
     auth_user = only_authenticate_email(db, email)
 
     if not auth_user:
-        return RedirectResponse(url="/login-fail")
+        signup_token = create_access_token(
+        data={"sub": name,
+            "email": email},
+        expires_delta=timedelta(minutes=30)
+        )
+
+        redirect_response = RedirectResponse(url="http://localhost:5173/social_sign_up")
+        redirect_response.set_cookie(
+            key="signup_token",
+            value=signup_token,
+            httponly=True,
+            secure=False,
+            samesite="lax",
+            max_age=3600,
+            path="/", 
+        )
+        return redirect_response
 
     access_token = create_access_token(
-        data={"sub": form_data.username},
+        data={"sub": auth_user.user_name},
         expires_delta=timedelta(minutes=30)
+    )
+
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=3600,
+        path="/", 
     )
 
     # 4) 처리 후 원하는 곳으로 리다이렉트하거나 토큰 반환 등 응답 처리
     # 여기서는 예시로 성공 페이지나 프론트엔드 주소로 리다이렉트
-    return RedirectResponse(url="/login-success")  # 또는 프론트엔드 URL
+    return RedirectResponse(url="http://localhost:5173")  # 또는 프론트엔드 URL

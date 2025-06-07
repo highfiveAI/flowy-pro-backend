@@ -28,6 +28,18 @@ class UserCreate(BaseModel):
     job: str
     sysrole: str
 
+# 소셜 회원가입 생성용 스키마
+class SocialUserCreate(BaseModel):
+    login_id: str
+    password: str
+    phone: str
+    company: str
+    department: str | None = None
+    team: str | None = None
+    position: str
+    job: str
+    sysrole: str
+
 class LoginInfo(BaseModel):
     email: EmailStr
     password: str

@@ -22,19 +22,20 @@ def get_all_positions(db: Session):
     return db.query(CompanyPosition).all()
 
 def create_user(db: Session, user: UserCreate):
-    hashed_password = pwd_context.hash(user.password)
+    hashed_password = pwd_context.hash(user.password) if user.password else none
+
     db_user = FlowyUser(
-        user_name = user.name,
-        user_email = user.email,
-        user_login_id = user.login_id,
-        user_password = hashed_password,
-        user_phonenum = user.phone,
-        user_company_id = user.company,
-        user_dept_name = user.department,
-        user_team_name = user.team,
-        user_position_id = user.position,
-        user_jobname = user.job,
-        user_sysrole_id = user.sysrole
+        user_name=user.name,
+        user_email=user.email,
+        user_login_id=user.login_id,
+        user_password=hashed_password,
+        user_phonenum=user.phone,
+        user_company_id=user.company,
+        user_dept_name=user.department,
+        user_team_name=user.team,
+        user_position_id=user.position,
+        user_jobname=user.job,
+        user_sysrole_id=user.sysrole
     )
     db.add(db_user)
     db.commit()
