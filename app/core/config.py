@@ -11,6 +11,9 @@ class Settings:
     SERPAPI_API_KEY: str = os.getenv("SERPAPI_API_KEY")
     CONNECTION_STRING: str = os.getenv("CONNECTION_STRING")
     SECRET_KEY: str = os.getenv("SECRET_KEY")
+    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID")
+    GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET")
+    GOOGLE_REDIRECT_URI: str = os.getenv("GOOGLE_REDIRECT_URI")
     # 여기에 추가 환경변수 및 공통 설정 작성 가능
 
 settings = Settings() 

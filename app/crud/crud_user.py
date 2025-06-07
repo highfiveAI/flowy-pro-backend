@@ -48,3 +48,9 @@ def authenticate_user(db: Session, email: str, password: str):
     if not verify_password(password, user.user_password):
         return None
     return user
+
+def only_authenticate_email(db: Session, email: str):
+    email = db.query(FlowyUser).filter(FlowyUser.user_email == email).first()
+    if not email:
+        return None
+    return email

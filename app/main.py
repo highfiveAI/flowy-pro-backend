@@ -9,6 +9,7 @@ load_dotenv()
 # from typing import List
 # from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 from app.api.v1.api import api_router
 
 
@@ -21,6 +22,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(SessionMiddleware, secret_key="your-session-secret")
 
 app.include_router(api_router, prefix="/api/v1")
 
