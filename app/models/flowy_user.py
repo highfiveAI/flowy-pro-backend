@@ -22,9 +22,9 @@ class FlowyUser(Base):
     # 관계 정의
     position = relationship("CompanyPosition", back_populates="users")
     interdocs = relationship("Interdoc", back_populates="user", cascade="all, delete-orphan")
-    profile_image = relationship("ProfileImg", back_populates="user", uselist=False)
-    signup_logs = relationship("SignupLog", back_populates="signup_request_user")
-    signup_logs = relationship("SignupLog", back_populates="signup_update_user")
+    profile_imgs = relationship("ProfileImg", back_populates="user", uselist=False)
+    signup_request_logs = relationship("SignupLog", foreign_keys="[SignupLog.signup_request_user_id]", back_populates="signup_request_user")
+    signup_update_logs = relationship("SignupLog", foreign_keys="[SignupLog.signup_update_user_id]", back_populates="signup_update_user")
     sysrole = relationship("Sysrole", back_populates="users")
     company = relationship("Company", back_populates="users")
     project_users = relationship("ProjectUser", back_populates="user")

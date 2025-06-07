@@ -14,5 +14,5 @@ class SignupLog(Base):
 
 
     # 관계 정의
-    signup_request_user = relationship("FlowyUser", back_populates="signup_logs")
-    signup_update_user = relationship("FlowyUser", back_populates="signup_logs")
+    signup_request_user = relationship("FlowyUser", foreign_keys=[signup_request_user_id], back_populates="signup_request_logs")
+    signup_update_user = relationship("FlowyUser", foreign_keys=[signup_update_user_id], back_populates="signup_update_logs")
