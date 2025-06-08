@@ -19,7 +19,7 @@ class UserCreate(BaseModel):
     name: str
     email: EmailStr 
     login_id: str
-    password: str
+    password: str | None = None
     phone: str
     company: str
     department: str | None = None
@@ -31,7 +31,7 @@ class UserCreate(BaseModel):
 # 소셜 회원가입 생성용 스키마
 class SocialUserCreate(BaseModel):
     login_id: str
-    password: str
+    password: str | None = None
     phone: str
     company: str
     department: str | None = None
