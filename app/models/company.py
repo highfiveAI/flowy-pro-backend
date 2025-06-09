@@ -14,5 +14,6 @@ class Company(Base):
     service_enddate = Column(TIMESTAMP, nullable=True)
     service_status = Column(BOOLEAN, nullable=False)
 
-    sysroles = relationship("Sysrole", back_populates="company")
+    admins = relationship("Admin", back_populates="company")
     users = relationship("FlowyUser", back_populates="company")
+    projects = relationship("Project", back_populates="company")
