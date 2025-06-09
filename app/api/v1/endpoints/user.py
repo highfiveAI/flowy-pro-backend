@@ -16,6 +16,8 @@ from jose import jwt, JWTError
 BACKEND_URI = settings.BACKEND_URI
 FRONTEND_URI = settings.FRONTEND_URI
 SECRET_KEY = settings.SECRET_KEY 
+COOKIE_SECURE = settings.COOKIE_SECURE 
+COOKIE_SAMESITE = settings.COOKIE_SAMESITE 
 ALGORITHM = "HS256"
 
 router = APIRouter()
@@ -73,8 +75,8 @@ def login(user: LoginInfo, response: Response, db: Session = Depends(get_db_sess
         key="access_token",
         value=access_token,
         httponly=True,       # JavaScript에서 접근 불가
-        secure=True,        # 배포 시에는 반드시 True (HTTPS에서만 전송)
-        samesite="None",      # 또는 "strict", "none"
+        secure=COOKIE_SECURE,        # 배포 시에는 반드시 True (HTTPS에서만 전송)
+        samesite=COOKIE_SAMESITE,      # 또는 "strict", "none"
         max_age=3600,        # 쿠키 유지 시간 (초) – 1시간
         path="/",            # 쿠키가 적용될 경로
     )
@@ -158,8 +160,8 @@ async def google_callback(request: Request, response: Response, db: Session = De
             key="signup_token",
             value=signup_token,
             httponly=True,
-            secure=True,
-            samesite="None",
+            secure=COOKIE_SECURE,
+            samesite=COOKIE_SAMESITE,
             max_age=3600,
             path="/", 
         )
@@ -175,8 +177,8 @@ async def google_callback(request: Request, response: Response, db: Session = De
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=True,
-        samesite="None",
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
         max_age=3600,
         path="/", 
     )
