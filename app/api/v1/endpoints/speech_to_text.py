@@ -6,8 +6,11 @@ from app.services.orchestration import super_agent_for_meeting
 import json
 import os
 import re
-from typing import List
-from pydantic import BaseModel
+from typing import List, Optional, Dict
+from pydantic import BaseModel, UUID4
+from datetime import datetime
+from sqlalchemy.orm import Session
+from app.api.deps import get_db
 
 router = APIRouter()
 
@@ -15,6 +18,7 @@ class Attendee(BaseModel):
     name: str
     email: str
     role: str
+
 
 def parse_attendees(
     attendees: List[str] = Form(...)
@@ -38,7 +42,10 @@ async def stt_api(
     meeting_date: str = Form(...),
     attendees_name: List[str] = Form(...),
     attendees_email: List[str] = Form(...),
-    attendees_role: List[str] = Form(...)
+    attendees_role: List[str] = Form(...),
+    project_id: str = Form(...),  # 추가
+    meeting_audio_type: str = Form(...),  # 추가
+    db: Session = Depends(get_db)
 ):
     print("=== stt_api called ===", flush=True)
     # 콤마로 구분된 입력값도 분리해서 여러 명으로 처리
@@ -72,12 +79,23 @@ async def stt_api(
     tag_result = None
     if subject and "chunks" in result:
         print("calling tag_chunks...", flush=True)
-
-        tag_result = await tag_chunks_async(subject, result["chunks"], attendees_list, agenda, meeting_date)
+        tag_result = await tag_chunks_async(subject, result["chunks"], attendees_list, agenda, meeting_date, db)
         # print(f"결과물 : {tag_result.get("all_sentences")}")
-        all_txt_result = " ".join(tag_result.get("all_sentences"))
-        search_result = super_agent_for_meeting(all_txt_result)
-        urls = re.findall(r'https?://\S+', search_result)
+        # all_txt_result = " ".join(tag_result.get("all_sentences"))
+        # search_result = super_agent_for_meeting(all_txt_result)
+        # urls = re.findall(r'https?://\S+', search_result)
+        urls = [
+            "https://example.com",
+            "https://example.org",
+            "https://testsite.com/page1",
+            "https://mywebsite.net/about",
+            "https://service.io/api/data",
+            "https://news.example.com/article123",
+            "https://blog.example.org/post456",
+            "https://shop.example.net/product789",
+            "https://app.example.io/dashboard",
+            "https://static.example.com/assets/img.png"
+        ]
         print(f"서칭 결과물 : {search_result}")
         
 
