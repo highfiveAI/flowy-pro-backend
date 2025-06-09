@@ -13,6 +13,8 @@ from app.services.auth import create_access_token, verify_token
 from app.services.google_auth import oauth
 from jose import jwt, JWTError
 
+BACKEND_URI = settings.BACKEND_URI
+FRONTEND_URI = settings.FRONTEND_URI
 SECRET_KEY = settings.SECRET_KEY 
 ALGORITHM = "HS256"
 
@@ -116,7 +118,7 @@ async def auth_check(request: Request):
 
 @router.get("/auth/google/login")
 async def google_login(request: Request):
-    redirect_uri = "http://localhost:8000/api/v1/users/auth/google/callback"
+    redirect_uri = BACKEND_URI + "/api/v1/users/auth/google/callback"
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 @router.get("/auth/google/callback")
@@ -151,7 +153,7 @@ async def google_callback(request: Request, response: Response, db: Session = De
         expires_delta=timedelta(minutes=30)
         )
 
-        redirect_response = RedirectResponse(url="http://localhost:5173/social_sign_up")
+        redirect_response = RedirectResponse(url= FRONTEND_URI + "/social_sign_up")
         redirect_response.set_cookie(
             key="signup_token",
             value=signup_token,
@@ -168,7 +170,8 @@ async def google_callback(request: Request, response: Response, db: Session = De
         expires_delta=timedelta(minutes=30)
     )
 
-    response.set_cookie(
+    redirect_response = RedirectResponse(url= FRONTEND_URI)
+    redirect_response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
@@ -180,4 +183,4 @@ async def google_callback(request: Request, response: Response, db: Session = De
 
     # 4) 처리 후 원하는 곳으로 리다이렉트하거나 토큰 반환 등 응답 처리
     # 여기서는 예시로 성공 페이지나 프론트엔드 주소로 리다이렉트
-    return RedirectResponse(url="http://localhost:5173")  # 또는 프론트엔드 URL
+    return redirect_response  # 또는 프론트엔드 URL

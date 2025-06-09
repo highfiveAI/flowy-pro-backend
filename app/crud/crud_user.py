@@ -22,7 +22,7 @@ def get_all_positions(db: Session):
     return db.query(CompanyPosition).all()
 
 def create_user(db: Session, user: UserCreate):
-    hashed_password = pwd_context.hash(user.password) if user.password else none
+    hashed_password = pwd_context.hash(user.password) if user.password else pwd_context.hash("social_dummy_password")
 
     db_user = FlowyUser(
         user_name=user.name,
