@@ -12,7 +12,7 @@ class Interdoc(Base):
     interdocs_type_name = Column(String(50), nullable=False)
     interdocs_filename = Column(String(100), nullable=False)
     interdocs_contents = Column(String(255), nullable=False)
-    interdocs_vector = Column(Vector(1536), nullable=False)
+    interdocs_vector = Column(Vector(512), nullable=False)
     interdocs_path = Column(Text, nullable=False)
     interdocs_uploaded_date = Column(TIMESTAMP, nullable=False)
     interdocs_updated_date = Column(TIMESTAMP, nullable=True)

@@ -37,7 +37,7 @@ s3_client = boto3.client(
 DB_CONFIG = {
     "host": "192.168.0.117",
     "port": "5432",
-    "database": "FlowyProDB",
+    "database": "postgres",
     "user": "postgres",
     "password": "1111"
 }
