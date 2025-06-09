@@ -58,6 +58,7 @@ pydantic_core==2.33.2
 pydantic[email]
 pydub==0.25.1
 PyPDF2==3.0.1
+python-docx
 python-dotenv==1.1.0
 python-multipart==0.0.20
 python-jose[cryptography]

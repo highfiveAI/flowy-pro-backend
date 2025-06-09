@@ -24,7 +24,7 @@ from app.models.interdoc import Interdoc
 load_dotenv()
 
 # DB 연결 설정
-DATABASE_URL = os.getenv('DATABASE_URL')
+DATABASE_URL = os.getenv('CONNECTION_STRING')
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

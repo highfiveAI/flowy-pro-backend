@@ -7,13 +7,15 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
+from app.core.config import settings
 from app.models.company import Company
 
 # .env 파일에서 DB 설정 로드
 load_dotenv()
 
 # DB 연결 설정
-DB_URL = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/flowy_db")
+DB_URL = settings.CONNECTION_STRING
+# DB_URL = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/flowy_db")
 engine = create_engine(
     DB_URL,
     connect_args={'options': '-c client_encoding=utf8'}

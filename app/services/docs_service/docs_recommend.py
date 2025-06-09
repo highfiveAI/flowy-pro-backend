@@ -6,10 +6,12 @@ from langchain_openai import ChatOpenAI
 from langchain.agents import Tool, AgentType, initialize_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, SystemMessage
+from app.core.config import settings
 import psycopg2
 from contextlib import contextmanager
 import boto3
 from botocore.exceptions import ClientError
+
 
 # .env 파일 로드
 load_dotenv()
@@ -35,15 +37,15 @@ s3_client = boto3.client(
 
 # DB 연결 정보
 DB_CONFIG = {
-    "host": "192.168.0.117",
-    "port": "5432",
-    "database": "postgres",
-    "user": "postgres",
-    "password": "1111"
+    "host": settings.POSTGRES_HOST,
+    "port": settings.POSTGRES_PORT,
+    "database": settings.POSTGRES_DB,
+    "user": settings.POSTGRES_USER,
+    "password": settings.POSTGRES_PASSWORD
 }
 
 CONNECTION_STRING = f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
-
+# CONNECTION_STRING = settings.CONNECTION_STRING
 @contextmanager
 def get_db_connection():
     """데이터베이스 연결을 관리하는 컨텍스트 매니저"""
