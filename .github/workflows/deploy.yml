@@ -31,9 +31,16 @@ jobs:
         echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
         echo "SERPAPI_API_KEY=${{ secrets.SERPAPI_API_KEY }}" >> .env
         echo "CONNECTION_STRING=${{ secrets.CONNECTION_STRING }}" >> .env
+        echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
+        echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}" >> .env
+        echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}" >> .env
+        echo "FRONTEND_URI=${{ secrets.FRONTEND_URI }}" >> .env
+        echo "BACKEND_URI=${{ secrets.BACKEND_URI }}" >> .env
         echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> .env
         echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
         echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
+        echo "POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}" >> .env
+        echo "POSTGRES_HOST=${{ secrets.POSTGRES_HOST }}" >> .env
 
     - name: Copy docker-compose.yml to EC2
       uses: appleboy/scp-action@v0.1.4

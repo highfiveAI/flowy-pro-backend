@@ -18,10 +18,20 @@ app = FastAPI()
 # 허용할 프론트엔드 주소 (Vite는 보통 5173 포트)
 origins = [
     "http://localhost:5173",  # Vite dev server
+    "https://main.d3o9djmc1cbi7u.amplifyapp.com" # 배포서버
 ]
 
 # CORS 미들웨어 추가
 app.add_middleware(SessionMiddleware, secret_key="your-session-secret")
+# app.add_middleware(
+#     SessionMiddleware,
+#     secret_key="your-secret-key",
+#     session_cookie="session",
+#     max_age=3600,
+#     same_site="lax",   
+#     https_only=False,    
+# )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
