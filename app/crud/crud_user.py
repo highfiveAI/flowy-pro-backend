@@ -1,25 +1,24 @@
 from sqlalchemy.orm import Session
-from app.models import CompanyPosition, FlowyUser
-from app.schemas.company_position import CompanyPositionCreate
+from app.models import FlowyUser
 from app.schemas.signup_info import UserCreate
 from app.core.security import verify_password
 from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-def create_company_position(db: Session, position_in: CompanyPositionCreate) -> CompanyPosition:
-    db_position = CompanyPosition(
-        position_code=position_in.position_code,
-        position_name=position_in.position_name,
-        position_detail=position_in.position_detail,
-    )
-    db.add(db_position)
-    db.commit()
-    db.refresh(db_position)
-    return db_position
+# def create_company_position(db: Session, position_in: CompanyPositionCreate) -> CompanyPosition:
+#     db_position = CompanyPosition(
+#         position_code=position_in.position_code,
+#         position_name=position_in.position_name,
+#         position_detail=position_in.position_detail,
+#     )
+#     db.add(db_position)
+#     db.commit()
+#     db.refresh(db_position)
+#     return db_position
 
-def get_all_positions(db: Session):
-    return db.query(CompanyPosition).all()
+# def get_all_positions(db: Session):
+#     return db.query(CompanyPosition).all()
 
 def create_user(db: Session, user: UserCreate):
     hashed_password = pwd_context.hash(user.password) if user.password else pwd_context.hash("social_dummy_password")

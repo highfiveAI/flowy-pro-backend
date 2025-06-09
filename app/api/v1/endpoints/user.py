@@ -9,8 +9,8 @@ from app.core.config import settings
 from app.schemas.signup_info import SocialUserCreate, UserCreate, LoginInfo
 from app.crud.crud_user import create_user, authenticate_user, only_authenticate_email
 from app.api.deps import get_db_session
-from app.services.auth import create_access_token, verify_token
-from app.services.google_auth import oauth
+from app.services.signup_service.auth import create_access_token, verify_token
+from app.services.signup_service.google_auth import oauth
 from jose import jwt, JWTError
 
 BACKEND_URI = settings.BACKEND_URI
