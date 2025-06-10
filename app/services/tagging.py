@@ -141,8 +141,7 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
     todos_result = extract_todos(subject, chunks, attendees_list, sentence_scores, agenda, meeting_date)
     assigned_roles = todos_result.get("assigned_roles")
     
-    # print(f"[tag_chunks_async] db 값: {db}", flush=True)
-    # # DB 저장 (db가 있을 때만)
+    # DB 저장 (db가 있을 때만)
     # if db is not None:
     #     print(f"[tagging.py] insert_summary_log 호출: summary_result={summary_result}", flush=True)
     #     insert_summary_log(db, summary_result["summary"] if isinstance(summary_result, dict) and "summary" in summary_result else summary_result)

@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.models import FlowyUser
+from app.models import FlowyUser, Project, ProjectUser
 from app.schemas.signup_info import UserCreate
 from app.core.security import verify_password
 from passlib.context import CryptContext
@@ -54,3 +54,14 @@ def only_authenticate_email(db: Session, email: str):
     if not email:
         return None
     return email
+
+def get_projects_for_user(db: Session, user_id: str):
+
+    results = (
+        db.query(FlowyUser.user_name, Project.project_name)
+        .join(ProjectUser, ProjectUser.user_id == FlowyUser.user_id)
+        .join(Project, Project.project_id == ProjectUser.project_id)
+        .filter(FlowyUser.user_id == user_id)
+        .all()
+    )
+    return results
