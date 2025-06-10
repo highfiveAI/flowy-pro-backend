@@ -33,9 +33,17 @@ class UserUpdate(UserBase):
 
 class UserResponse(UserBase):
     user_id: UUID
+    signup_completed_status: str
+    company_name: str
+    position_name: str
+    sysrole_name: str
 
     class Config:
         from_attributes = True
+
+
+class UserStatusUpdate(BaseModel):
+    status: str
 
 
 # 회사 관련 Pydantic 모델
@@ -121,6 +129,13 @@ def delete_user(user_id: UUID):
     crud = UserCRUD()
     crud.delete(user_id)
     return None
+
+
+@router.put("/users/{user_id}/status", response_model=UserResponse)
+def update_user_status(user_id: UUID, status_update: UserStatusUpdate):
+    """사용자의 승인 상태를 변경합니다."""
+    crud = UserCRUD()
+    return crud.update_user_status(user_id, status_update.status)
 
 
 # 회사 관리 API
