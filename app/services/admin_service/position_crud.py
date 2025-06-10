@@ -21,6 +21,8 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 class PositionCRUD:
     def __init__(self):
         self.db: Session = SessionLocal()
+        # 기본 회사 ID 설정
+        self.default_company_id = UUID("7e48a91a-99a9-4013-9015-6281b72920a9")
 
     def __del__(self):
         if hasattr(self, 'db'):
@@ -35,6 +37,9 @@ class PositionCRUD:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="이미 등록된 직급 코드입니다."
                 )
+
+            # position_company_id 기본값 설정
+            position_data["position_company_id"] = self.default_company_id
 
             position = CompanyPosition(**position_data)
             self.db.add(position)
