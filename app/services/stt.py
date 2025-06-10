@@ -127,14 +127,8 @@ def stt_from_file(file_path: str = None) -> dict:
     Whisper 결과를 GPT로 자연스럽게 다듬은 뒤, 청크 분할 및 오버랩 기능 적용
     """
     try:
-        print("[STT] 환경 변수 체크:", flush=True)
-        print(f"OPENAI_API_KEY 설정 여부: {'설정됨' if os.getenv('OPENAI_API_KEY') else '설정되지 않음'}", flush=True)
-        
         if not file_path or not os.path.exists(file_path):
-            print(f"[STT] 파일 경로 오류: {file_path}", flush=True)
             return {"text": "음성 파일이 존재하지 않습니다."}
-            
-        print(f"[STT] 파일 처리 시작: {file_path}", flush=True)
         # 1. 오디오 파일 청크 분할
         chunk_length_sec = 150  # 2.5분
         overlap_sec = 4
