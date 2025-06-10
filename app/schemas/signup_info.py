@@ -33,7 +33,8 @@ class UserCreate(BaseModel):
     position: str
     job: str
     sysrole: str
-
+    login_type: str
+    
 # 소셜 회원가입 생성용 스키마
 class SocialUserCreate(BaseModel):
     login_id: str

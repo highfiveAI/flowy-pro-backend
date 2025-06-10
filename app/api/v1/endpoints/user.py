@@ -50,7 +50,8 @@ async def social_signup(request: Request, user_data: SocialUserCreate, db: Sessi
         team= user_data.team,
         position= user_data.position,
         job= user_data.job,
-        sysrole= user_data.sysrole
+        sysrole= user_data.sysrole,
+        login_type= "google"
     )
 
     return create_user(db, new_user)
