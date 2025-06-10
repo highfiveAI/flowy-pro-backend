@@ -77,6 +77,11 @@ def login(user: LoginInfo, response: Response, db: Session = Depends(get_db_sess
         expires_delta=timedelta(minutes=30)
     )
 
+    response = JSONResponse(content={
+        "authenticated": True,
+        "user": payload.dict()
+    })
+
     response.set_cookie(
         key="access_token",
         value=access_token,
@@ -87,9 +92,7 @@ def login(user: LoginInfo, response: Response, db: Session = Depends(get_db_sess
         path="/",            # 쿠키가 적용될 경로
     )
 
-    return JSONResponse(content={
-        "authenticated": True, 
-        "user": payload.dict()})
+    return response
 
 # 로그인 → JWT 반환
 @router.post("/jwtlogin")

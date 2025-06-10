@@ -18,6 +18,7 @@ class FlowyUser(Base):
     user_position_id = Column(UUID(as_uuid=True), ForeignKey('company_position.position_id'), nullable=False)
     user_jobname = Column(String(100))
     user_sysrole_id = Column(UUID(as_uuid=True), ForeignKey('sysrole.sysrole_id'), nullable=False)
+    user_login_type = Column(String(20), nullable=False)
 
     # 관계 정의
     position = relationship("CompanyPosition", back_populates="users")
