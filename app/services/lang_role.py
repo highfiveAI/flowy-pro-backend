@@ -4,7 +4,7 @@ import json
 from typing import List, Dict, Any
 import re
 
-def assign_roles(subject: str, full_meeting_sentences: List[str], attendees_list: List[Dict[str, Any]], output: dict, agenda: str = None, meeting_date: str = None) -> dict:
+def assign_roles(subject: str, full_meeting_sentences: List[str], attendees_list: List[Dict[str, Any]], output: dict, agenda: str = "", meeting_date: str = "") -> dict:
     """
     subject: 회의 주제 (str)
     chunks: 회의 내용 청크 리스트 (List[str])
@@ -51,7 +51,8 @@ def assign_roles(subject: str, full_meeting_sentences: List[str], attendees_list
   "assigned_todos": [
     {{
       "action": "",
-      "assignee": "", // 참석자 이름, 없으면 "미지정"
+      "assignee": "", // 참석자 이름, 없으면 "미지정",
+      "schedule": "", // 해당 Action의 예상 일정 (예: "2024-06-10", "이번 주 내", "다음 회의 전", 일정 언급 없으면 "미정" 또는 "언급 없음" 등으로 표기)
       "context": ""
     }},
     ...
@@ -78,18 +79,24 @@ def assign_roles(subject: str, full_meeting_sentences: List[str], attendees_list
     try:
         agent_output = agent_output.strip()
         if agent_output.startswith("```json"):
-            agent_output = agent_output.removeprefix("```json").removesuffix("```").strip()
-        # JSON만 추출 (가장 먼저 나오는 { ... } 블록)
+            agent_output = agent_output.removeprefix("```json").removesuffix("``` ").strip()
         match = re.search(r'\{.*\}', agent_output, re.DOTALL)
         if match:
             agent_output = match.group()
             result_json = json.loads(agent_output)
         else:
-            # JSON이 하나도 없거나 빈 응답일 때
             result_json = {"assigned_todos": [], "error": "넘겨 받은 할일 리스트가 없습니다.", "raw": agent_output}
     except Exception as e:
         print(f"[assign_roles] JSON 파싱 오류: {e}", flush=True)
         result_json = {"assigned_todos": [], "error": str(e), "raw": agent_output}
+
+    # schedule 항목 추가: action/context가 일치하는 output['todos']에서 schedule을 찾아서 넣기
+    if result_json.get("assigned_todos") and todos:
+        for assigned in result_json["assigned_todos"]:
+            action = assigned.get("action", "")
+            context = assigned.get("context", "")
+            matched = next((t for t in todos if t.get("action", "") == action and t.get("context", "") == context), None)
+            assigned["schedule"] = matched.get("schedule", "") if matched else ""
 
     return {
         "subject": subject,

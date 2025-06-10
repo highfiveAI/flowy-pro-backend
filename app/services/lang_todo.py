@@ -2,10 +2,71 @@ import openai
 import os
 import json
 import re
+import datetime
+import calendar
 from typing import List, Dict, Any
 from app.services.lang_role import assign_roles
 
 openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+def parse_relative_schedule(schedule_str: str, meeting_date: str) -> str:
+    """
+    상대적 일정 표현(오늘, 내일, 이번 주 금요일 등)이 포함되어있는 문자열을 meeting_date 기준 실제 날짜(YYYY.MM.DD(요일))로 변환
+    변환 불가시 원본 반환
+    """
+    if not meeting_date:
+        return schedule_str
+    try:
+        # meeting_date는 'YYYY-MM-DD' 또는 'YYYY.MM.DD' 등으로 들어올 수 있음
+        date_match = re.match(r"(\d{4})[.-](\d{1,2})[.-](\d{1,2})", meeting_date)
+        if not date_match:
+            return schedule_str
+        year, month, day = map(int, date_match.groups())
+        base_date = datetime.date(year, month, day)
+        weekday_map = {0: '월', 1: '화', 2: '수', 3: '목', 4: '금', 5: '토', 6: '일'}
+        # 오늘/내일/모레
+        if schedule_str in ["오늘", "오늘 중"]:
+            target = base_date
+        elif schedule_str == "내일":
+            target = base_date + datetime.timedelta(days=1)
+        elif schedule_str == "모레":
+            target = base_date + datetime.timedelta(days=2)
+        # 이번 주 요일
+        elif schedule_str.startswith("이번 주 "):
+            day_name = schedule_str.replace("이번 주 ", "").replace("요일", "")
+            day_map = {"월":0, "화":1, "수":2, "목":3, "금":4, "토":5, "일":6}
+            if day_name in day_map:
+                base_weekday = base_date.weekday()
+                target_weekday = day_map[day_name]
+                days_ahead = (target_weekday - base_weekday + 7) % 7
+                if days_ahead == 0:
+                    days_ahead = 7  # 다음 주로 넘기지 않고 이번 주
+                target = base_date + datetime.timedelta(days=days_ahead)
+            else:
+                return schedule_str
+        # 다음 주 요일
+        elif schedule_str.startswith("다음 주 "):
+            day_name = schedule_str.replace("다음 주 ", "").replace("요일", "")
+            day_map = {"월":0, "화":1, "수":2, "목":3, "금":4, "토":5, "일":6}
+            if day_name in day_map:
+                base_weekday = base_date.weekday()
+                target_weekday = day_map[day_name]
+                days_ahead = (target_weekday - base_weekday + 7) % 7 + 7
+                target = base_date + datetime.timedelta(days=days_ahead)
+            else:
+                return schedule_str
+        # 'YYYY-MM-DD' 등 날짜 문자열이 이미 들어온 경우
+        elif re.match(r"\d{4}[.-]\d{1,2}[.-]\d{1,2}", schedule_str):
+            date_match2 = re.match(r"(\d{4})[.-](\d{1,2})[.-](\d{1,2})", schedule_str)
+            y, m, d = map(int, date_match2.groups())
+            target = datetime.date(y, m, d)
+        else:
+            return schedule_str
+        # 날짜 포맷: YYYY.MM.DD(요일)
+        weekday = weekday_map[target.weekday()]
+        return f"{target.year}.{target.month:02d}.{target.day:02d}({weekday})"
+    except Exception:
+        return schedule_str
 
 def extract_todos(subject: str, chunks: List[str], attendees_list: List[Dict[str, Any]], sentence_scores: List[Dict[str, Any]], agenda: str = None, meeting_date: str = None) -> Dict[str, Any]:
     """
@@ -48,6 +109,14 @@ def extract_todos(subject: str, chunks: List[str], attendees_list: List[Dict[str
 5️⃣ "담당자 지정"은 하지 않는다. → 역할분배 Agent가 따로 담당한다.
 6️⃣ 중복 Action은 한 번만 추출한다.
 
+[Action 일정 추론 규칙]
+- 각 Action별로 "언제까지 해야 하는지"의 예상 일정을 회의 맥락에서 최대한 추론하여 "schedule"에 반드시 입력한다.
+- 회의에서 일정이 명확히 언급되지 않은 경우 "미정" 또는 "언급 없음" 등으로 표기한다.
+**중요**
+- 일정, 날짜, 기간 등 시간 관련 표현이 '오늘', '이번주 내', '내일', '다음주' 등 상대적 표현으로 등장하면 반드시 회의날짜(meeting_date)를 기준으로 실제 날짜로 변환해서 명확하게 표기해.
+    - 예시: 오늘 → {meeting_date}
+    - 날짜 계산이 애매하면 반드시 회의 날짜({meeting_date}) 기준으로 표기해.
+
 [강화된 예외 규칙]  
 - **"수정이 필요합니다", "해결해야 할 것 같습니다", "고려해봐야 합니다", "논의가 필요합니다", "문제가 있습니다"** → Action 아님 (단순 의견/제안/필요성 언급 → 수행 의지 없음 → Action 금지)
 - "회의에서 실제로 실행 책임이 확정되지 않은 것"은 Action으로 추출 금지
@@ -73,7 +142,8 @@ def extract_todos(subject: str, chunks: List[str], attendees_list: List[Dict[str
   "todos": [
     {{
       "action": "",    // 명확한 업무 단위
-      "context": ""    // 해당 Action이 나온 회의 원문 문장
+      "context": "",   // 해당 Action이 나온 회의 원문 문장
+      "schedule": ""   // 해당 Action의 예상 일정 (예: "2025-06-10(화)" 일정 언급 없으면 "미정" 또는 "언급 없음" 등으로 표기)
     }},
     ...
   ],
@@ -136,6 +206,11 @@ def extract_todos(subject: str, chunks: List[str], attendees_list: List[Dict[str
             "summary": result.get("summary", "이번 회의에서는 구체적인 실행 업무가 아직 논의되지 않았습니다."),
             "total_count": result.get("total_count", len(result.get("todos", [])))
         }
+        # schedule 변환 적용
+        if meeting_date and output["todos"]:
+            for todo in output["todos"]:
+                if "schedule" in todo and todo["schedule"]:
+                    todo["schedule"] = parse_relative_schedule(todo["schedule"], meeting_date)
         print("[lang_todo] extract_todos 결과:", flush=True)
         print(json.dumps(output, ensure_ascii=False, indent=2), flush=True)
         if not output["todos"]:

@@ -43,8 +43,7 @@ async def stt_api(
     attendees_name: List[str] = Form(...),
     attendees_email: List[str] = Form(...),
     attendees_role: List[str] = Form(...),
-    project_id: str = Form(...),  # 추가
-    meeting_audio_type: str = Form(...),  # 추가
+    project_name: str = Form(...),  # 추가
     db: Session = Depends(get_db)
 ):
     print("=== stt_api called ===", flush=True)
@@ -79,7 +78,7 @@ async def stt_api(
     tag_result = None
     if subject and "chunks" in result:
         print("calling tag_chunks...", flush=True)
-        tag_result = await tag_chunks_async(subject, result["chunks"], attendees_list, agenda, meeting_date, db)
+        tag_result = await tag_chunks_async(project_name, subject, result["chunks"], attendees_list, agenda, meeting_date, db)
         # print(f"결과물 : {tag_result.get("all_sentences")}")
         # all_txt_result = " ".join(tag_result.get("all_sentences"))
         # search_result = super_agent_for_meeting(all_txt_result)
@@ -96,7 +95,7 @@ async def stt_api(
             "https://app.example.io/dashboard",
             "https://static.example.com/assets/img.png"
         ]
-        print(f"서칭 결과물 : {search_result}")
+        # print(f"서칭 결과물 : {search_result}")
         
 
 
