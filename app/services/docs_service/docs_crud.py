@@ -5,11 +5,11 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 import tempfile
-import subprocess
 
 import boto3
 import PyPDF2
 import docx
+import openpyxl
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 from fastapi import UploadFile, HTTPException
@@ -49,26 +49,6 @@ openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 # 문서 임베딩 모델 초기화
 model = SentenceTransformer('sentence-transformers/distiluse-base-multilingual-cased-v2')
 
-def extract_text_from_hwp(file_path: str) -> str:
-    """HWP 파일에서 텍스트를 추출하는 함수"""
-    try:
-        result = subprocess.run(
-            ['hwp5txt', file_path],
-            capture_output=True,
-            text=True,
-            encoding='utf-8'
-        )
-        
-        if result.returncode != 0:
-            raise ValueError(f"HWP 파일 변환 실패: {result.stderr}")
-            
-        return result.stdout.strip()
-        
-    except subprocess.CalledProcessError as e:
-        raise ValueError(f"HWP 파일 처리 실패: {str(e)}")
-    except Exception as e:
-        raise ValueError(f"HWP 파일 읽기 실패: {str(e)}")
-
 def read_file_content(file: UploadFile) -> str:
     """파일 형식에 따라 내용을 읽는 함수"""
     content = ""
@@ -89,14 +69,33 @@ def read_file_content(file: UploadFile) -> str:
             doc = docx.Document(file.file)
             content = "\n".join([paragraph.text for paragraph in doc.paragraphs])
             
-        elif file_ext == 'hwp':
-            file.file.seek(0) 
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.hwp') as temp_file:
+        elif file_ext in ['xlsx', 'xls']:
+            # 임시 파일로 저장 후 처리
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_ext}') as temp_file:
                 temp_file.write(file.file.read())
                 temp_path = temp_file.name
             
             try:
-                content = extract_text_from_hwp(temp_path)
+                workbook = openpyxl.load_workbook(temp_path, data_only=True)
+                sheets_content = []
+                
+                for sheet in workbook.sheetnames:
+                    worksheet = workbook[sheet]
+                    sheet_content = []
+                    
+                    # 시트 이름 추가
+                    sheet_content.append(f"[시트: {sheet}]")
+                    
+                    # 각 행의 데이터를 읽음
+                    for row in worksheet.iter_rows():
+                        row_values = [str(cell.value) if cell.value is not None else '' for cell in row]
+                        if any(row_values):  # 빈 행 제외
+                            sheet_content.append(' | '.join(row_values))
+                    
+                    sheets_content.append('\n'.join(sheet_content))
+                
+                content = '\n\n'.join(sheets_content)
+                
             finally:
                 if os.path.exists(temp_path):
                     os.unlink(temp_path)
@@ -104,7 +103,7 @@ def read_file_content(file: UploadFile) -> str:
         else:
             raise HTTPException(
                 status_code=400,
-                detail="지원하지 않는 파일 형식입니다. (지원 형식: txt, pdf, doc, docx, hwp)"
+                detail="지원하지 않는 파일 형식입니다. (지원 형식: txt, pdf, doc, docx, xlsx, xls)"
             )
             
         if not content.strip():
@@ -130,7 +129,7 @@ def extract_text_from_file(file: UploadFile) -> str:
         response = openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "주어진 문서의 전체적인 구조를 파악하여, 1~2문장 요약을 작성해주세요. 예를 들어, ‘목차, 목표, 일정, 예산 등으로 구성된 프로젝트 기획안’과 같이, 문서의 구성 요소를 중심으로 문서 종류와 연결되는 자연스러운 문장으로 만들어 주세요. 문서의 구체적 내용보다는 형식적·조직적 구성을 중심으로 정리해 주세요."},
+                {"role": "system", "content": "주어진 문서의 전체적인 구조를 파악하여, 1~2문장 요약을 작성해주세요. 예를 들어, '목차, 목표, 일정, 예산 등으로 구성된 프로젝트 기획안'과 같이, 문서의 구성 요소를 중심으로 문서 종류와 연결되는 자연스러운 문장으로 만들어 주세요. 문서의 구체적 내용보다는 형식적·조직적 구성을 중심으로 정리해 주세요."},
                 {"role": "user", "content": content}
             ],
             max_tokens=300,
