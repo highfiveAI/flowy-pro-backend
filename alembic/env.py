@@ -7,7 +7,7 @@ from app.models import (
     flowy_user, company_position, interdoc, profile_img, signup_log,
     sysrole, company, admin, meeting_user, meeting, project_user,
     project, role, summary_log, task_assign_log, draft_log,
-    feedback, feedbacktype
+    feedback, feedbacktype, prompt_log
 )
 
 from pgvector.sqlalchemy import Vector
