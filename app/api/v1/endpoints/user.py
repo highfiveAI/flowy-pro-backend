@@ -24,7 +24,7 @@ router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/users/jwtlogin")
 
 @router.post("/social_signup")
-def social_signup(request: Request, user_data: SocialUserCreate, db: Session = Depends(get_db_session)):
+async def social_signup(request: Request, user_data: SocialUserCreate, db: Session = Depends(get_db_session)):
     token = request.cookies.get("signup_token")
     if not token:
         raise HTTPException(status_code=401, detail="토큰이 없습니다")
@@ -56,11 +56,11 @@ def social_signup(request: Request, user_data: SocialUserCreate, db: Session = D
     return create_user(db, new_user)
 
 @router.post("/signup")
-def signup(user: UserCreate, db: Session = Depends(get_db_session)):
+async def signup(user: UserCreate, db: Session = Depends(get_db_session)):
     return create_user(db, user)
 
 @router.post("/login")
-def login(user: LoginInfo, response: Response, db: Session = Depends(get_db_session)):
+async def login(user: LoginInfo, response: Response, db: Session = Depends(get_db_session)):
     auth_user = authenticate_user(db, user.email, user.password)
     
     if not auth_user:
@@ -94,9 +94,14 @@ def login(user: LoginInfo, response: Response, db: Session = Depends(get_db_sess
 
     return response
 
+@router.post("/logout")
+async def logout(response: Response):
+    response.delete_cookie(key="access_token", httponly=True, secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE)
+    return {"message": "Logged out successfully"}
+
 # 로그인 → JWT 반환
 @router.post("/jwtlogin")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db_session)):
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db_session)):
     auth_user = authenticate_user(db, form_data.username, form_data.password )
     
     if not auth_user:
@@ -110,7 +115,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
 # 인증 테스트
 @router.get("/me")
-def read_me(token: str = Depends(oauth2_scheme)):
+async def read_me(token: str = Depends(oauth2_scheme)):
     username = verify_token(token)
     return {"username": username}
 
