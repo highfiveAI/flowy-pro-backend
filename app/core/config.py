@@ -22,6 +22,8 @@ class Settings:
     POSTGRES_DB: str = os.getenv("POSTGRES_DB")
     POSTGRES_PORT: str = os.getenv("POSTGRES_PORT")
     POSTGRES_HOST: str = os.getenv("POSTGRES_HOST")
+    COOKIE_SECURE: str = os.getenv("COOKIE_SECURE")
+    COOKIE_SAMESITE: str = os.getenv("COOKIE_SAMESITE")
 
     # 여기에 추가 환경변수 및 공통 설정 작성 가능
 

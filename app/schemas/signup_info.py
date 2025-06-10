@@ -1,4 +1,10 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, UUID4
+
+# 엑세스 토큰
+class TokenPayload(BaseModel):
+    id: str
+    name: str
+    email: str
 
 # 응답용 스키마
 class User(BaseModel):
@@ -27,7 +33,8 @@ class UserCreate(BaseModel):
     position: str
     job: str
     sysrole: str
-
+    login_type: str
+    
 # 소셜 회원가입 생성용 스키마
 class SocialUserCreate(BaseModel):
     login_id: str
@@ -45,4 +52,4 @@ class LoginInfo(BaseModel):
     password: str
 
     class Config:
-        orm_mode = True
+        orm_mode = True,

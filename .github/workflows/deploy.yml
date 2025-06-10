@@ -41,6 +41,8 @@ jobs:
         echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
         echo "POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}" >> .env
         echo "POSTGRES_HOST=${{ secrets.POSTGRES_HOST }}" >> .env
+        echo "COOKIE_SECURE=${{ secrets.COOKIE_SECURE }}" >> .env
+        echo "COOKIE_SAMESITE=${{ secrets.COOKIE_SAMESITE }}" >> .env
 
     - name: Copy docker-compose.yml to EC2
       uses: appleboy/scp-action@v0.1.4

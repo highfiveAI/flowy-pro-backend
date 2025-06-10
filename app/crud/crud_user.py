@@ -1,25 +1,10 @@
 from sqlalchemy.orm import Session
-from app.models import CompanyPosition, FlowyUser
-from app.schemas.company_position import CompanyPositionCreate
+from app.models import FlowyUser, SignupLog
 from app.schemas.signup_info import UserCreate
 from app.core.security import verify_password
 from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-def create_company_position(db: Session, position_in: CompanyPositionCreate) -> CompanyPosition:
-    db_position = CompanyPosition(
-        position_code=position_in.position_code,
-        position_name=position_in.position_name,
-        position_detail=position_in.position_detail,
-    )
-    db.add(db_position)
-    db.commit()
-    db.refresh(db_position)
-    return db_position
-
-def get_all_positions(db: Session):
-    return db.query(CompanyPosition).all()
 
 def create_user(db: Session, user: UserCreate):
     hashed_password = pwd_context.hash(user.password) if user.password else pwd_context.hash("social_dummy_password")
@@ -35,9 +20,19 @@ def create_user(db: Session, user: UserCreate):
         user_team_name=user.team,
         user_position_id=user.position,
         user_jobname=user.job,
-        user_sysrole_id=user.sysrole
+        user_sysrole_id=user.sysrole,
+        user_login_type=user.login_type
     )
     db.add(db_user)
+    db.flush()
+
+    log = SignupLog(
+        signup_request_user_id=db_user.user_id,
+        signup_update_user_id=db_user.user_id,
+        signup_completed_status="pending"
+    )
+    db.add(log)
+
     db.commit()
     db.refresh(db_user)
     return db_user
