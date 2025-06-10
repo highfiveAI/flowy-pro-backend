@@ -10,7 +10,7 @@ class SignupLog(Base):
     signup_request_user_id = Column(UUID(as_uuid=True), ForeignKey("flowy_user.user_id"), nullable=False)
     signup_update_user_id = Column(UUID(as_uuid=True), ForeignKey("flowy_user.user_id"), nullable=False)
     signup_status_changed_date = Column(TIMESTAMP, nullable=True)
-    signup_completed_status = Column(Boolean, nullable=False)
+    signup_completed_status = Column(String(20), nullable=False)
 
 
     # 관계 정의

@@ -15,11 +15,16 @@ class Settings:
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID")
     GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET")
     GOOGLE_REDIRECT_URI: str = os.getenv("GOOGLE_REDIRECT_URI")
+    FRONTEND_URI: str = os.getenv("FRONTEND_URI")
+    BACKEND_URI: str = os.getenv("BACKEND_URI")
     POSTGRES_USER: str = os.getenv("POSTGRES_USER")
     POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD")
     POSTGRES_DB: str = os.getenv("POSTGRES_DB")
     POSTGRES_PORT: str = os.getenv("POSTGRES_PORT")
     POSTGRES_HOST: str = os.getenv("POSTGRES_HOST")
+    COOKIE_SECURE: str = os.getenv("COOKIE_SECURE")
+    COOKIE_SAMESITE: str = os.getenv("COOKIE_SAMESITE")
+
     # 여기에 추가 환경변수 및 공통 설정 작성 가능
 
 settings = Settings() 

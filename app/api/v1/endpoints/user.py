@@ -6,21 +6,25 @@ from sqlalchemy.orm import Session
 from datetime import timedelta
 from app.core.security import verify_password
 from app.core.config import settings
-from app.schemas.signup_info import SocialUserCreate, UserCreate, LoginInfo
+from app.schemas.signup_info import SocialUserCreate, UserCreate, LoginInfo, TokenPayload
 from app.crud.crud_user import create_user, authenticate_user, only_authenticate_email
 from app.api.deps import get_db_session
-from app.services.auth import create_access_token, verify_token
-from app.services.google_auth import oauth
+from app.services.signup_service.auth import create_access_token, verify_token, verify_access_token
+from app.services.signup_service.google_auth import oauth
 from jose import jwt, JWTError
-
+import json
+BACKEND_URI = settings.BACKEND_URI
+FRONTEND_URI = settings.FRONTEND_URI
 SECRET_KEY = settings.SECRET_KEY 
+COOKIE_SECURE = settings.COOKIE_SECURE 
+COOKIE_SAMESITE = settings.COOKIE_SAMESITE 
 ALGORITHM = "HS256"
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/users/jwtlogin")
 
 @router.post("/social_signup")
-def social_signup(request: Request, user_data: SocialUserCreate, db: Session = Depends(get_db_session)):
+async def social_signup(request: Request, user_data: SocialUserCreate, db: Session = Depends(get_db_session)):
     token = request.cookies.get("signup_token")
     if not token:
         raise HTTPException(status_code=401, detail="토큰이 없습니다")
@@ -52,40 +56,52 @@ def social_signup(request: Request, user_data: SocialUserCreate, db: Session = D
     return create_user(db, new_user)
 
 @router.post("/signup")
-def signup(user: UserCreate, db: Session = Depends(get_db_session)):
+async def signup(user: UserCreate, db: Session = Depends(get_db_session)):
     return create_user(db, user)
 
 @router.post("/login")
-def login(user: LoginInfo, response: Response, db: Session = Depends(get_db_session)):
+async def login(user: LoginInfo, response: Response, db: Session = Depends(get_db_session)):
     auth_user = authenticate_user(db, user.email, user.password)
     
     if not auth_user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
+    payload = TokenPayload(
+        id=str(auth_user.user_id),
+        name=auth_user.user_name,
+        email=auth_user.user_email
+    )
+
     access_token = create_access_token(
-        data={"sub": auth_user.user_name},
+        data=payload.dict(),
         expires_delta=timedelta(minutes=30)
     )
+
+    response = JSONResponse(content={
+        "authenticated": True,
+        "user": payload.dict()
+    })
 
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,       # JavaScript에서 접근 불가
-        secure=False,        # 배포 시에는 반드시 True (HTTPS에서만 전송)
-        samesite="lax",      # 또는 "strict", "none"
+        secure=COOKIE_SECURE,        # 배포 시에는 반드시 True (HTTPS에서만 전송)
+        samesite=COOKIE_SAMESITE,      # 또는 "strict", "none"
         max_age=3600,        # 쿠키 유지 시간 (초) – 1시간
         path="/",            # 쿠키가 적용될 경로
     )
-    
-    return {
-        "message": "Login successful",
-        # "access_token": access_token,
-        "token_type": "bearer"
-    }
+
+    return response
+
+@router.post("/logout")
+async def logout(response: Response):
+    response.delete_cookie(key="access_token", httponly=True, secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE)
+    return {"message": "Logged out successfully"}
 
 # 로그인 → JWT 반환
 @router.post("/jwtlogin")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db_session)):
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db_session)):
     auth_user = authenticate_user(db, form_data.username, form_data.password )
     
     if not auth_user:
@@ -99,24 +115,30 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
 # 인증 테스트
 @router.get("/me")
-def read_me(token: str = Depends(oauth2_scheme)):
+async def read_me(token: str = Depends(oauth2_scheme)):
     username = verify_token(token)
     return {"username": username}
 
 @router.get("/auth/check")
 async def auth_check(request: Request):
     token = request.cookies.get("access_token")
-    if not token or not verify_token(token):
+    if not token:
         raise HTTPException(status_code=401, detail="인증 실패")
-    username = verify_token(token)
 
-    # 인증 성공 시 필요한 사용자 정보 반환 가능
-    return JSONResponse(content={"authenticated": True, "user": username })
+    try:
+        user: TokenPayload = verify_access_token(token)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="인증 실패")
+
+    user_dict = json.loads(user.json())
+
+
+    return JSONResponse(content={"authenticated": True, "user": user_dict})
 
 
 @router.get("/auth/google/login")
 async def google_login(request: Request):
-    redirect_uri = "http://localhost:8000/api/v1/users/auth/google/callback"
+    redirect_uri = BACKEND_URI + "/api/v1/users/auth/google/callback"
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 @router.get("/auth/google/callback")
@@ -151,33 +173,40 @@ async def google_callback(request: Request, response: Response, db: Session = De
         expires_delta=timedelta(minutes=30)
         )
 
-        redirect_response = RedirectResponse(url="http://localhost:5173/social_sign_up")
+        redirect_response = RedirectResponse(url= FRONTEND_URI + "/social_sign_up")
         redirect_response.set_cookie(
             key="signup_token",
             value=signup_token,
             httponly=True,
-            secure=False,
-            samesite="lax",
+            secure=COOKIE_SECURE,
+            samesite=COOKIE_SAMESITE,
             max_age=3600,
             path="/", 
         )
         return redirect_response
 
+    payload = TokenPayload(
+        id=str(auth_user.user_id),
+        name=auth_user.user_name,
+        email=auth_user.user_email
+    )
+
     access_token = create_access_token(
-        data={"sub": auth_user.user_name},
+        data=payload.dict(),
         expires_delta=timedelta(minutes=30)
     )
 
-    response.set_cookie(
+    redirect_response = RedirectResponse(url= FRONTEND_URI)
+    redirect_response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
         max_age=3600,
         path="/", 
     )
 
     # 4) 처리 후 원하는 곳으로 리다이렉트하거나 토큰 반환 등 응답 처리
     # 여기서는 예시로 성공 페이지나 프론트엔드 주소로 리다이렉트
-    return RedirectResponse(url="http://localhost:5173")  # 또는 프론트엔드 URL
+    return redirect_response  # 또는 프론트엔드 URL

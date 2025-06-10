@@ -17,3 +17,4 @@ class Company(Base):
     admins = relationship("Admin", back_populates="company")
     users = relationship("FlowyUser", back_populates="company")
     projects = relationship("Project", back_populates="company")
+    company_positions = relationship("CompanyPosition", back_populates="company")
