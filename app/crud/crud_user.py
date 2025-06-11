@@ -6,7 +6,7 @@ from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-def create_user(db: Session, user: UserCreate):
+async def create_user(db: Session, user: UserCreate):
     hashed_password = pwd_context.hash(user.password) if user.password else pwd_context.hash("social_dummy_password")
 
     db_user = FlowyUser(
@@ -37,7 +37,7 @@ def create_user(db: Session, user: UserCreate):
     db.refresh(db_user)
     return db_user
 
-def authenticate_user(db: Session, email: str, password: str):
+async def authenticate_user(db: Session, email: str, password: str):
     user = db.query(FlowyUser).filter(FlowyUser.user_email == email).first()
     if not user:
         return None
@@ -45,15 +45,15 @@ def authenticate_user(db: Session, email: str, password: str):
         return None
     return user
 
-def only_authenticate_email(db: Session, email: str):
+async def only_authenticate_email(db: Session, email: str):
     email = db.query(FlowyUser).filter(FlowyUser.user_email == email).first()
     if not email:
         return None
     return email
 
-def get_projects_for_user(db: Session, user_id: str):
+async def get_projects_for_user(db: Session, user_id: str):
     results = (
-        db.query(FlowyUser.user_name, Project.project_name)
+        db.query(FlowyUser.user_name, Project.project_name, Project.project_id)
         .join(ProjectUser, ProjectUser.user_id == FlowyUser.user_id)
         .join(Project, Project.project_id == ProjectUser.project_id)
         .filter(FlowyUser.user_id == user_id)

@@ -11,6 +11,9 @@ from pydantic import BaseModel, UUID4
 from datetime import datetime
 from sqlalchemy.orm import Session
 from app.api.deps import get_db
+from app.crud.crud_meeting import insert_meeting, get_project_users
+from app.models.project_user import ProjectUser
+from app.models.flowy_user import FlowyUser
 
 router = APIRouter()
 
@@ -79,23 +82,23 @@ async def stt_api(
     if subject and "chunks" in result:
         print("calling tag_chunks...", flush=True)
         tag_result = await tag_chunks_async(project_name, subject, result["chunks"], attendees_list, agenda, meeting_date, db)
-        print(f"결과물 : {tag_result.get("all_sentences")}")
-        all_txt_result = " ".join(tag_result.get("all_sentences"))
-        search_result = super_agent_for_meeting(all_txt_result)
-        urls = re.findall(r'https?://\S+', search_result)
-        # urls = [
-        #     "https://example.com",
-        #     "https://example.org",
-        #     "https://testsite.com/page1",
-        #     "https://mywebsite.net/about",
-        #     "https://service.io/api/data",
-        #     "https://news.example.com/article123",
-        #     "https://blog.example.org/post456",
-        #     "https://shop.example.net/product789",
-        #     "https://app.example.io/dashboard",
-        #     "https://static.example.com/assets/img.png"
-        # ]
-        print(f"서칭 결과물 : {search_result}")
+        # print(f"결과물 : {tag_result.get('all_sentences')}")
+        # all_txt_result = " ".join(tag_result.get("all_sentences"))
+        # search_result = super_agent_for_meeting(all_txt_result)
+        # urls = re.findall(r'https?://\S+', search_result)
+        urls = [
+            "https://example.com",
+            "https://example.org",
+            "https://testsite.com/page1",
+            "https://mywebsite.net/about",
+            "https://service.io/api/data",
+            "https://news.example.com/article123",
+            "https://blog.example.org/post456",
+            "https://shop.example.net/product789",
+            "https://app.example.io/dashboard",
+            "https://static.example.com/assets/img.png"
+        ]
+        # print(f"서칭 결과물 : {search_result}")
         
 
 
@@ -110,3 +113,64 @@ async def stt_api(
         "meeting_date": meeting_date,
         "search_result": urls
     }
+
+@router.post("/meeting-upload/")
+async def meeting_upload_api(
+    file: UploadFile = File(...),
+    project_id: str = Form(...),
+    meeting_title: str = Form(...),
+    meeting_agenda: str = Form(...),
+    meeting_date: str = Form(...),  # 'YYYY-MM-DD HH:mm:ss' 형태
+    db: Session = Depends(get_db)
+):
+    # 1. 파일 저장
+    save_dir = "app/temp_uploads"
+    os.makedirs(save_dir, exist_ok=True)
+    file_location = os.path.join(save_dir, file.filename)
+    with open(file_location, "wb") as buffer:
+        buffer.write(await file.read())
+
+    # 2. meeting_date를 datetime으로 변환
+    meeting_date_obj = datetime.strptime(meeting_date, "%Y-%m-%d %H:%M:%S")
+
+    # 3. DB 저장
+    meeting = await insert_meeting(
+        db=db,
+        project_id=project_id,
+        meeting_title=meeting_title,
+        meeting_agenda=meeting_agenda,
+        meeting_date=meeting_date_obj,
+        meeting_audio_path=file_location
+    )
+    return {"meeting_id": meeting.meeting_id, "meeting_audio_path": file_location}
+
+@router.get("/project-users/{project_id}")
+async def get_project_users(project_id: str, db: Session = Depends(get_db)):
+    project_users = db.query(ProjectUser).filter(ProjectUser.project_id == project_id).all()
+    
+    print("=== Project Users Query Result ===")
+    print(f"Project ID: {project_id}")
+    print(f"Number of users found: {len(project_users)}")
+    
+    users = []
+    for pu in project_users:
+        flowy_user = db.query(FlowyUser).filter(FlowyUser.user_id == pu.user_id).first()
+        if flowy_user:
+            print(f"\nUser ID: {pu.user_id}")
+            print(f"Role ID: {pu.role_id}")
+            print(f"Name: {flowy_user.user_name}")
+            print(f"Email: {flowy_user.user_email}")
+            users.append({
+                "user_id": pu.user_id,
+                "role_id": pu.role_id,
+                "name": flowy_user.user_name,
+                "email": flowy_user.user_email,
+                "user_jobname": flowy_user.user_jobname
+
+
+            })
+    
+    print("================================")
+    return {"users": users}
+
+    
