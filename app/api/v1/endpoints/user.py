@@ -213,8 +213,13 @@ async def google_callback(request: Request, response: Response, db: Session = De
 
 @router.get("/projects/{user_id}")
 async def read_projects_for_user(user_id: str, db: Session = Depends(get_db_session)):
+    print("엔드포인트 호출됨")
     projects = get_projects_for_user(db, user_id)
     print("[프로젝트 목록 반환] user_id:", user_id, "projects:", projects)
-    return {"projects": projects}
+    # 변환: 튜플 리스트 → 딕셔너리 리스트
+    projects_list = [
+        {"userName": p[0], "projectName": p[1]} for p in projects
+    ]
+    return {"projects": projects_list}
 
     

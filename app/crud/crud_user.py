@@ -3,6 +3,7 @@ from app.models import FlowyUser, Project, ProjectUser
 from app.schemas.signup_info import UserCreate
 from app.core.security import verify_password
 from passlib.context import CryptContext
+import logging
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -56,7 +57,6 @@ def only_authenticate_email(db: Session, email: str):
     return email
 
 def get_projects_for_user(db: Session, user_id: str):
-
     results = (
         db.query(FlowyUser.user_name, Project.project_name)
         .join(ProjectUser, ProjectUser.user_id == FlowyUser.user_id)
@@ -64,4 +64,5 @@ def get_projects_for_user(db: Session, user_id: str):
         .filter(FlowyUser.user_id == user_id)
         .all()
     )
+    print(f"get_projects_for_user results: {results}")
     return results
