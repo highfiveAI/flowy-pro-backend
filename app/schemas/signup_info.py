@@ -46,6 +46,7 @@ class SocialUserCreate(BaseModel):
     position: str
     job: str
     sysrole: str
+    login_type: str
 
 class LoginInfo(BaseModel):
     email: EmailStr
