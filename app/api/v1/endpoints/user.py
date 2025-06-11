@@ -128,9 +128,8 @@ async def auth_check(request: Request):
     token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="인증 실패")
-
     try:
-        user: TokenPayload = verify_access_token(token)
+        user: TokenPayload = await verify_access_token(token)
     except ValueError:
         raise HTTPException(status_code=401, detail="인증 실패")
 
@@ -231,3 +230,21 @@ async def read_company_names(db: AsyncSession = Depends(get_db_session)):
     data = await get_signup_meta(db)
 
     return data
+
+@router.get("/one")
+async def read_one_user(request: Request, db: AsyncSession = Depends(get_db_session)):
+
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="인증 실패")
+
+    try:
+        user: TokenPayload = await verify_access_token(token)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="인증 실패")
+
+    user_dict = json.loads(user.json())
+    print(user_dict)
+    user_info = await only_authenticate_email(db, user.email);
+
+    return user_info;

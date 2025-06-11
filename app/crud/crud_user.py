@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select
 from app.models import FlowyUser, SignupLog, ProjectUser, Project
 from app.schemas.signup_info import UserCreate
@@ -55,7 +55,7 @@ async def authenticate_user(db: AsyncSession, email: str, password: str):
     return user
 
 async def only_authenticate_email(db: AsyncSession, email: str):
-    stmt = select(FlowyUser).where(FlowyUser.user_email == email)
+    stmt = select(FlowyUser).options(joinedload(FlowyUser.company)).where(FlowyUser.user_email == email)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
     return user
