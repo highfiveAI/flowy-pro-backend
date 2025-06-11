@@ -8,11 +8,11 @@ from app.core.security import verify_password
 from app.core.config import settings
 from app.schemas.signup_info import SocialUserCreate, UserCreate, LoginInfo, TokenPayload
 from app.crud.crud_user import create_user, authenticate_user, only_authenticate_email, get_projects_for_user
-from app.db.db_session import get_db_session
+from app.api.deps import get_db_session
 from app.services.signup_service.auth import create_access_token, verify_token, verify_access_token
 from app.services.signup_service.google_auth import oauth
 from jose import jwt, JWTError
-from sqlalchemy.ext.asyncio import AsyncSession
+# from sqlalchemy.ext.asyncio import AsyncSession
 import json
 BACKEND_URI = settings.BACKEND_URI
 FRONTEND_URI = settings.FRONTEND_URI
@@ -60,40 +60,40 @@ async def social_signup(request: Request, user_data: SocialUserCreate, db: Sessi
 async def signup(user: UserCreate, db: Session = Depends(get_db_session)):
     return create_user(db, user)
 
-@router.post("/login")
-async def login(user: LoginInfo, response: Response, db: AsyncSession = Depends(get_db_session)):
-    auth_user = await authenticate_user(db, user.email, user.password)
+# @router.post("/login")
+# async def login(user: LoginInfo, response: Response, db: AsyncSession = Depends(get_db_session)):
+#     auth_user = await authenticate_user(db, user.email, user.password)
     
-    if not auth_user:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+#     if not auth_user:
+#         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    payload = TokenPayload(
-        id=str(auth_user.user_id),
-        name=auth_user.user_name,
-        email=auth_user.user_email
-    )
+#     payload = TokenPayload(
+#         id=str(auth_user.user_id),
+#         name=auth_user.user_name,
+#         email=auth_user.user_email
+#     )
 
-    access_token = create_access_token(
-        data=payload.dict(),
-        expires_delta=timedelta(minutes=30)
-    )
+#     access_token = create_access_token(
+#         data=payload.dict(),
+#         expires_delta=timedelta(minutes=30)
+#     )
 
-    response = JSONResponse(content={
-        "authenticated": True,
-        "user": payload.dict()
-    })
+#     response = JSONResponse(content={
+#         "authenticated": True,
+#         "user": payload.dict()
+#     })
 
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,       # JavaScript에서 접근 불가
-        secure=COOKIE_SECURE,        # 배포 시에는 반드시 True (HTTPS에서만 전송)
-        samesite=COOKIE_SAMESITE,      # 또는 "strict", "none"
-        max_age=3600,        # 쿠키 유지 시간 (초) – 1시간
-        path="/",            # 쿠키가 적용될 경로
-    )
+#     response.set_cookie(
+#         key="access_token",
+#         value=access_token,
+#         httponly=True,       # JavaScript에서 접근 불가
+#         secure=COOKIE_SECURE,        # 배포 시에는 반드시 True (HTTPS에서만 전송)
+#         samesite=COOKIE_SAMESITE,      # 또는 "strict", "none"
+#         max_age=3600,        # 쿠키 유지 시간 (초) – 1시간
+#         path="/",            # 쿠키가 적용될 경로
+#     )
 
-    return response
+#     return response
 
 @router.post("/logout")
 async def logout(response: Response):

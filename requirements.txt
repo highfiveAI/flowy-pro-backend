@@ -5,7 +5,6 @@ alembic==1.16.1
 annotated-types==0.7.0
 anyio==4.9.0
 attrs==25.3.0
-asyncpg
 authlib
 boto3
 certifi==2025.4.26
