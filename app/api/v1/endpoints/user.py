@@ -13,7 +13,7 @@ from app.db.db_session import get_db_session
 from app.services.signup_service.auth import create_access_token, verify_token, verify_access_token
 from app.services.signup_service.google_auth import oauth
 from jose import jwt, JWTError
-# from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 import json
 
 BACKEND_URI = settings.BACKEND_URI

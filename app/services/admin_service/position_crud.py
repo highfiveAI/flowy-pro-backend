@@ -3,36 +3,41 @@ from uuid import UUID
 from fastapi import HTTPException, status
 import os
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.future import select
 from app.core.config import settings
 from app.models.company_position import CompanyPosition
 
-# DB 연결 설정
-DB_URL = settings.CONNECTION_STRING
-# DB_URL = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/flowy_db")
-engine = create_engine(
+# DB 연결 설정 (비동기)
+DB_URL = settings.CONNECTION_STRING.replace('postgresql://', 'postgresql+asyncpg://')
+engine = create_async_engine(
     DB_URL,
-    connect_args={'options': '-c client_encoding=utf8'}
+    echo=True
 )
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+AsyncSessionLocal = sessionmaker(
+    engine, class_=AsyncSession, expire_on_commit=False
+)
 
 
 class PositionCRUD:
     def __init__(self):
-        self.db: Session = SessionLocal()
+        self.db: AsyncSession = AsyncSessionLocal()
         # 기본 회사 ID 설정
         self.default_company_id = UUID("7e48a91a-99a9-4013-9015-6281b72920a9")
 
-    def __del__(self):
-        if hasattr(self, 'db'):
-            self.db.close()
+    async def __aenter__(self):
+        return self
 
-    def create(self, position_data: dict) -> CompanyPosition:
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.db.close()
+
+    async def create(self, position_data: dict) -> CompanyPosition:
         """새로운 직급을 생성합니다."""
         try:
             # 직급 코드 중복 검사
-            if self._get_position_by_code(position_data["position_code"]):
+            existing_position = await self._get_position_by_code(position_data["position_code"])
+            if existing_position:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="이미 등록된 직급 코드입니다."
@@ -43,18 +48,19 @@ class PositionCRUD:
 
             position = CompanyPosition(**position_data)
             self.db.add(position)
-            self.db.commit()
-            self.db.refresh(position)
+            await self.db.commit()
+            await self.db.refresh(position)
             return position
         except Exception as e:
-            self.db.rollback()
+            await self.db.rollback()
             raise e
 
-    def get_by_id(self, position_id: UUID) -> CompanyPosition:
+    async def get_by_id(self, position_id: UUID) -> CompanyPosition:
         """ID로 직급을 조회합니다."""
-        position = self.db.query(CompanyPosition).filter(
-            CompanyPosition.position_id == position_id
-        ).first()
+        query = select(CompanyPosition).filter(CompanyPosition.position_id == position_id)
+        result = await self.db.execute(query)
+        position = result.scalar_one_or_none()
+        
         if not position:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -62,20 +68,20 @@ class PositionCRUD:
             )
         return position
 
-    def get_all(self, skip: int = 0, limit: int = 100) -> List[CompanyPosition]:
+    async def get_all(self, skip: int = 0, limit: int = 100) -> List[CompanyPosition]:
         """모든 직급을 조회합니다."""
-        return self.db.query(CompanyPosition).offset(skip).limit(limit).all()
+        query = select(CompanyPosition).offset(skip).limit(limit)
+        result = await self.db.execute(query)
+        return result.scalars().all()
 
-    def update(self, position_id: UUID, position_data: dict) -> CompanyPosition:
+    async def update(self, position_id: UUID, position_data: dict) -> CompanyPosition:
         """직급 정보를 수정합니다."""
         try:
-            position = self.get_by_id(position_id)
+            position = await self.get_by_id(position_id)
 
             # 직급 코드 중복 검사
             if "position_code" in position_data:
-                existing_position = self._get_position_by_code(
-                    position_data["position_code"]
-                )
+                existing_position = await self._get_position_by_code(position_data["position_code"])
                 if existing_position and existing_position.position_id != position_id:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
@@ -85,25 +91,25 @@ class PositionCRUD:
             for key, value in position_data.items():
                 setattr(position, key, value)
 
-            self.db.commit()
-            self.db.refresh(position)
+            await self.db.commit()
+            await self.db.refresh(position)
             return position
         except Exception as e:
-            self.db.rollback()
+            await self.db.rollback()
             raise e
 
-    def delete(self, position_id: UUID) -> None:
+    async def delete(self, position_id: UUID) -> None:
         """직급을 삭제합니다."""
         try:
-            position = self.get_by_id(position_id)
-            self.db.delete(position)
-            self.db.commit()
+            position = await self.get_by_id(position_id)
+            await self.db.delete(position)
+            await self.db.commit()
         except Exception as e:
-            self.db.rollback()
+            await self.db.rollback()
             raise e
 
-    def _get_position_by_code(self, code: str) -> Optional[CompanyPosition]:
+    async def _get_position_by_code(self, code: str) -> Optional[CompanyPosition]:
         """직급 코드로 직급을 조회합니다."""
-        return self.db.query(CompanyPosition).filter(
-            CompanyPosition.position_code == code
-        ).first() 
+        query = select(CompanyPosition).filter(CompanyPosition.position_code == code)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none() 
