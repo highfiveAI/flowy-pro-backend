@@ -2,9 +2,12 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select
 from app.models import FlowyUser, SignupLog, ProjectUser, Project
 from app.schemas.signup_info import UserCreate
+from app.schemas.mypage import UserUpdateRequest
 from app.core.security import verify_password
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional
+from uuid import UUID
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -72,3 +75,26 @@ async def get_projects_for_user(db: AsyncSession, user_id: str):
 
     print(f"get_projects_for_user results: {projects}")
     return projects
+
+async def update_user_info(user_id: str, user_update: UserUpdateRequest, session: AsyncSession):
+    result = await session.execute(
+        select(FlowyUser).where(FlowyUser.user_id == user_id)
+    )
+    user = result.scalars().first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    for key, value in user_update.dict(exclude_unset=True).items():
+        setattr(user, key, value)
+
+    await session.commit()
+    await session.refresh(user)
+
+    return {
+        "user_id": str(user.user_id),
+        "user_name": user.user_name,
+        "user_team_name": user.user_team_name,
+        "user_dept_name": user.user_dept_name,
+        "user_phonenum": user.user_phonenum
+    }
