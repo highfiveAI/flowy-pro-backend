@@ -75,11 +75,10 @@ async def stt_api(
     os.remove(temp_path)
     print("subject:", subject, "chunks in result:", "chunks" in result, flush=True)
     tag_result = None
-    urls = []
     if subject and "chunks" in result:
         print("calling tag_chunks...", flush=True)
         tag_result = await tag_chunks_async(project_name, subject, result["chunks"], attendees_list, agenda, meeting_date, db)
-        # print(f"결과물 : {tag_result.get("all_sentences")}")
+        print(f"결과물 : {tag_result.get("all_sentences")}")
         all_txt_result = " ".join(tag_result.get("all_sentences"))
         search_result = super_agent_for_meeting(all_txt_result)
         urls = re.findall(r'https?://\S+', search_result)
@@ -95,7 +94,7 @@ async def stt_api(
         #     "https://app.example.io/dashboard",
         #     "https://static.example.com/assets/img.png"
         # ]
-        # print(f"서칭 결과물 : {search_result}")
+        print(f"서칭 결과물 : {search_result}")
         
 
 
@@ -109,5 +108,6 @@ async def stt_api(
         "agenda": agenda,
         "meeting_date": meeting_date,
         "search_result": urls
+
     }
     

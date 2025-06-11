@@ -14,6 +14,12 @@ class Meeting(Base):
     meeting_date = Column(TIMESTAMP, nullable=False)
     meeting_audio_path = Column(Text, nullable=False)
     # meeting_audio_type = Column(String(30), nullable=False)
+    deduped_sentences = Column(Text, nullable=False)
+    sentence_scores = Column(Text, nullable=False)
+    assigned_todos = Column(Text, nullable=False)
+    assigned_roles = Column(Text, nullable=False)
+    categorized_summary = Column(Text, nullable=False)
+    feedback = Column(Text, nullable=False)
 
     project = relationship("Project", back_populates="meetings")
     summary_logs = relationship("SummaryLog", back_populates="meeting")
@@ -21,4 +27,3 @@ class Meeting(Base):
     meeting_users = relationship("MeetingUser", back_populates="meeting")
     draft_logs = relationship("DraftLog", back_populates="meeting")
     feedbacks = relationship("Feedback", back_populates="meeting")
-    prompt_logs = relationship("PromptLog", back_populates="meeting")
