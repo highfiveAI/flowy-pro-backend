@@ -13,7 +13,7 @@ from app.db.db_session import get_db_session
 from app.services.signup_service.auth import create_access_token, verify_token, verify_access_token
 from app.services.signup_service.google_auth import oauth
 from jose import jwt, JWTError
-from sqlalchemy.ext.asyncio import AsyncSession
+# from sqlalchemy.ext.asyncio import AsyncSession
 import json
 
 BACKEND_URI = settings.BACKEND_URI
@@ -63,9 +63,9 @@ async def social_signup(request: Request, user_data: SocialUserCreate, db: Async
 async def signup(user: UserCreate, db: AsyncSession = Depends(get_db_session)):
     return await create_user(db, user)
 
-@router.post("/login")
-async def login(user: LoginInfo, response: Response, db: AsyncSession = Depends(get_db_session)):
-    auth_user = await authenticate_user(db, user.email, user.password)
+# @router.post("/login")
+# async def login(user: LoginInfo, response: Response, db: AsyncSession = Depends(get_db_session)):
+#     auth_user = await authenticate_user(db, user.email, user.password)
     
     if not auth_user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
