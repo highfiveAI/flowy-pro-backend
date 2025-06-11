@@ -166,8 +166,6 @@ async def get_project_users(project_id: str, db: Session = Depends(get_db)):
                 "name": flowy_user.user_name,
                 "email": flowy_user.user_email,
                 "user_jobname": flowy_user.user_jobname
-
-
             })
     
     print("================================")
