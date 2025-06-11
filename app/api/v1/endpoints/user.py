@@ -7,7 +7,7 @@ from datetime import timedelta
 from app.core.security import verify_password
 from app.core.config import settings
 from app.schemas.signup_info import SocialUserCreate, UserCreate, LoginInfo, TokenPayload
-from app.crud.crud_user import create_user, authenticate_user, only_authenticate_email
+from app.crud.crud_user import create_user, authenticate_user, only_authenticate_email, get_projects_for_user
 from app.api.deps import get_db_session
 from app.services.signup_service.auth import create_access_token, verify_token, verify_access_token
 from app.services.signup_service.google_auth import oauth
@@ -50,8 +50,7 @@ async def social_signup(request: Request, user_data: SocialUserCreate, db: Sessi
         team= user_data.team,
         position= user_data.position,
         job= user_data.job,
-        sysrole= user_data.sysrole,
-        login_type= "google"
+        sysrole= user_data.sysrole
     )
 
     return create_user(db, new_user)
@@ -211,3 +210,16 @@ async def google_callback(request: Request, response: Response, db: Session = De
     # 4) 처리 후 원하는 곳으로 리다이렉트하거나 토큰 반환 등 응답 처리
     # 여기서는 예시로 성공 페이지나 프론트엔드 주소로 리다이렉트
     return redirect_response  # 또는 프론트엔드 URL
+
+@router.get("/projects/{user_id}")
+async def read_projects_for_user(user_id: str, db: Session = Depends(get_db_session)):
+    # print("엔드포인트 호출됨")
+    projects = get_projects_for_user(db, user_id)
+    # print("[프로젝트 목록 반환] user_id:", user_id, "projects:", projects)
+    # 변환: 튜플 리스트 → 딕셔너리 리스트
+    projects_list = [
+        {"userName": p[0], "projectName": p[1]} for p in projects
+    ]
+    return {"projects": projects_list}
+
+    
