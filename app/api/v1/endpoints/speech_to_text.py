@@ -19,7 +19,6 @@ class Attendee(BaseModel):
     email: str
     role: str
 
-
 def parse_attendees(
     attendees: List[str] = Form(...)
 ):
@@ -111,4 +110,4 @@ async def stt_api(
         "meeting_date": meeting_date,
         "search_result": urls
     }
-
+    

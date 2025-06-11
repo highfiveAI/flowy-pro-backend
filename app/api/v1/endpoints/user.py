@@ -8,10 +8,11 @@ from app.core.security import verify_password
 from app.core.config import settings
 from app.schemas.signup_info import SocialUserCreate, UserCreate, LoginInfo, TokenPayload
 from app.crud.crud_user import create_user, authenticate_user, only_authenticate_email
-from app.api.deps import get_db_session
+from app.db.db_session import get_db_session
 from app.services.signup_service.auth import create_access_token, verify_token, verify_access_token
 from app.services.signup_service.google_auth import oauth
 from jose import jwt, JWTError
+from sqlalchemy.ext.asyncio import AsyncSession
 import json
 BACKEND_URI = settings.BACKEND_URI
 FRONTEND_URI = settings.FRONTEND_URI
@@ -61,8 +62,8 @@ async def signup(user: UserCreate, db: Session = Depends(get_db_session)):
     return create_user(db, user)
 
 @router.post("/login")
-async def login(user: LoginInfo, response: Response, db: Session = Depends(get_db_session)):
-    auth_user = authenticate_user(db, user.email, user.password)
+async def login(user: LoginInfo, response: Response, db: AsyncSession = Depends(get_db_session)):
+    auth_user = await authenticate_user(db, user.email, user.password)
     
     if not auth_user:
         raise HTTPException(status_code=401, detail="Invalid email or password")

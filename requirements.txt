@@ -5,6 +5,7 @@ alembic==1.16.1
 annotated-types==0.7.0
 anyio==4.9.0
 attrs==25.3.0
+asyncpg
 authlib
 boto3
 certifi==2025.4.26
@@ -45,6 +46,7 @@ multidict==6.4.4
 mypy_extensions==1.1.0
 networkx==3.5
 numpy==2.2.6
+openpyxl
 openai==1.82.0
 orjson==3.10.18
 packaging==24.2

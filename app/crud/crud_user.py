@@ -1,8 +1,10 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from app.models import FlowyUser, SignupLog
 from app.schemas.signup_info import UserCreate
 from app.core.security import verify_password
 from passlib.context import CryptContext
+from sqlalchemy.ext.asyncio import AsyncSession
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -37,8 +39,11 @@ def create_user(db: Session, user: UserCreate):
     db.refresh(db_user)
     return db_user
 
-def authenticate_user(db: Session, email: str, password: str):
-    user = db.query(FlowyUser).filter(FlowyUser.user_email == email).first()
+async def authenticate_user(db: AsyncSession, email: str, password: str):
+    stmt = select(FlowyUser).where(FlowyUser.user_email == email)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
     if not user:
         return None
     if not verify_password(password, user.user_password):
