@@ -4,7 +4,7 @@ from app.models import FlowyUser, SignupLog, ProjectUser, Project
 from app.schemas.signup_info import UserCreate
 from app.core.security import verify_password
 from passlib.context import CryptContext
-# from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
