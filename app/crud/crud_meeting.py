@@ -9,9 +9,13 @@ from datetime import datetime
 def insert_summary_log(db: Session, summary_contents: dict):
     print(f"insert_summary_log called! summary_contents={summary_contents}", flush=True)
     from app.models import SummaryLog
+    
+    # assigned_todos만 추출
+    assigned_todos = summary_contents.get("assigned_roles", {}).get("assigned_todos", [])
+    
     summary_log = SummaryLog(
         summary_log_id=str(uuid4()),
-        updated_summary_contents=summary_contents,
+        updated_summary_contents={"assigned_todos": assigned_todos},  # assigned_todos만 저장
         updated_summary_date=datetime.now()
     )
     db.add(summary_log)
