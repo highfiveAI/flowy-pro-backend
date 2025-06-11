@@ -1,5 +1,5 @@
-from sqlalchemy.orm import Session
-# from sqlalchemy import select
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import select
 from app.models import FlowyUser, SignupLog, ProjectUser, Project
 from app.schemas.signup_info import UserCreate
 from app.core.security import verify_password
@@ -8,8 +8,11 @@ from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-def create_user(db: Session, user: UserCreate):
-    hashed_password = pwd_context.hash(user.password) if user.password else pwd_context.hash("social_dummy_password")
+async def create_user(db: AsyncSession, user: UserCreate):
+    hashed_password = (
+        pwd_context.hash(user.password) if user.password
+        else pwd_context.hash("social_dummy_password")
+    )
 
     db_user = FlowyUser(
         user_name=user.name,
@@ -25,8 +28,9 @@ def create_user(db: Session, user: UserCreate):
         user_sysrole_id=user.sysrole,
         user_login_type=user.login_type
     )
+
     db.add(db_user)
-    db.flush()
+    await db.flush()  # 비동기 flush
 
     log = SignupLog(
         signup_request_user_id=db_user.user_id,
@@ -35,8 +39,8 @@ def create_user(db: Session, user: UserCreate):
     )
     db.add(log)
 
-    db.commit()
-    db.refresh(db_user)
+    await db.commit()
+    await db.refresh(db_user)
     return db_user
 
 # async def authenticate_user(db: AsyncSession, email: str, password: str):
@@ -58,19 +62,21 @@ def authenticate_user(db: Session, email: str, password: str):
         return None
     return user
 
-def only_authenticate_email(db: Session, email: str):
-    email = db.query(FlowyUser).filter(FlowyUser.user_email == email).first()
-    if not email:
-        return None
-    return email
+async def only_authenticate_email(db: AsyncSession, email: str):
+    stmt = select(FlowyUser).options(joinedload(FlowyUser.company)).where(FlowyUser.user_email == email)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    return user
 
-def get_projects_for_user(db: Session, user_id: str):
-    results = (
-        db.query(FlowyUser.user_name, Project.project_name)
+async def get_projects_for_user(db: AsyncSession, user_id: str):
+    stmt = (
+        select(FlowyUser.user_name, Project.project_name)
         .join(ProjectUser, ProjectUser.user_id == FlowyUser.user_id)
         .join(Project, Project.project_id == ProjectUser.project_id)
-        .filter(FlowyUser.user_id == user_id)
-        .all()
+        .where(FlowyUser.user_id == user_id)
     )
-    print(f"get_projects_for_user results: {results}")
-    return results
+    result = await db.execute(stmt)
+    projects = result.all()
+
+    print(f"get_projects_for_user results: {projects}")
+    return projects
