@@ -22,7 +22,7 @@ services:
       - POSTGRES_PORT=${POSTGRES_PORT}
       - POSTGRES_HOST=db-dev
       - COOKIE_SECURE=false
-      - COOKIE_SAMESITE=Lax
+      - COOKIE_SAMESITE="Lax"
     volumes:
       - .:/app
     depends_on:

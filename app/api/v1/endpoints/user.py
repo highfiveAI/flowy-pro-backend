@@ -103,6 +103,7 @@ async def login(user: LoginInfo, response: Response, db: AsyncSession = Depends(
         samesite=COOKIE_SAMESITE,      # 또는 "strict", "none"
         max_age=3600,        # 쿠키 유지 시간 (초) – 1시간
         path="/",            # 쿠키가 적용될 경로
+        
     )
 
     return response
