@@ -41,7 +41,7 @@ async def create_user(db: AsyncSession, user: UserCreate):
     log = SignupLog(
         signup_request_user_id=db_user.user_id,
         signup_update_user_id=db_user.user_id,
-        signup_completed_status="pending"
+        signup_completed_status="Pending"
     )
     db.add(log)
 

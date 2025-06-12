@@ -92,6 +92,7 @@ class PositionUpdate(PositionBase):
 
 class PositionResponse(PositionBase):
     position_id: UUID
+    position_company_id: UUID
 
     class Config:
         from_attributes = True
@@ -225,4 +226,11 @@ async def delete_position(position_id: UUID):
     """직급을 삭제합니다."""
     crud = PositionCRUD()
     await crud.delete(position_id)
-    return None 
+    return None
+
+
+@router.get("/companies/{company_id}/positions/", response_model=List[PositionResponse])
+async def get_company_positions(company_id: UUID):
+    """특정 회사의 직급 목록을 조회합니다."""
+    crud = PositionCRUD()
+    return await crud.get_by_company_id(company_id) 

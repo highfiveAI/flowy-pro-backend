@@ -56,7 +56,7 @@ async def recommend_documents(request: DocumentRecommendRequest):
     - **query**: 검색할 역할 또는 업무 내용
     """
     try:
-        result = recommend_docs_from_role(request.query)
+        result = await recommend_docs_from_role(request.query)
 
         if isinstance(result, str):
             return DocumentRecommendResponse(success=False, message=result)
@@ -90,7 +90,7 @@ async def create_new_document(
     - **file**: 업로드할 파일
     - **update_user_id**: 업로드 사용자 ID
     """
-    return create_document(db, file, doc_type, update_user_id) # db 객체 전달
+    return await create_document(db, file, doc_type, update_user_id) # db 객체 전달
 
 @router.put("/{doc_id}", response_model=DocumentResponse)
 async def update_existing_document(
@@ -106,7 +106,7 @@ async def update_existing_document(
     - **file**: 새로운 파일
     - **update_user_id**: 수정 사용자 ID
     """
-    return update_document(db, doc_id, file, update_user_id) # db 객체 전달
+    return await update_document(db, doc_id, file, update_user_id) # db 객체 전달
 
 @router.get("/", response_model=List[DocumentResponse])
 async def get_all_documents(
@@ -132,7 +132,7 @@ async def get_single_document(
     
     - **doc_id**: 조회할 문서 ID
     """
-    doc = get_document(doc_id, db) # db 객체 전달
+    doc = await get_document(doc_id, db) # db 객체 전달
     if not doc:
         raise HTTPException(status_code=404, detail="문서를 찾을 수 없습니다")
     return doc
@@ -147,7 +147,7 @@ async def delete_existing_document(
     
     - **doc_id**: 삭제할 문서 ID
     """
-    result = delete_document(db, doc_id) # db 객체 전달
+    result = await delete_document(db, doc_id) # db 객체 전달
     if result:
         return {"message": "문서가 성공적으로 삭제되었습니다"}
     raise HTTPException(status_code=500, detail="문서 삭제 중 오류가 발생했습니다")
