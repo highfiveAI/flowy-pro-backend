@@ -67,9 +67,9 @@ async def only_authenticate_email(db: AsyncSession, email: str):
     user = result.scalar_one_or_none()
     return user
 
-async def get_projects_for_user(db: AsyncSession, user_id: str):
+async def get_projects_for_user(db: AsyncSession, user_id: UUID):
     stmt = (
-        select(FlowyUser.user_name, Project.project_name)
+        select(FlowyUser.user_name, Project.project_name, Project.project_id)
         .join(ProjectUser, ProjectUser.user_id == FlowyUser.user_id)
         .join(Project, Project.project_id == ProjectUser.project_id)
         .where(FlowyUser.user_id == user_id)

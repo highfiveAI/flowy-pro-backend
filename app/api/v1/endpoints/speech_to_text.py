@@ -14,6 +14,8 @@ from app.api.deps import get_db
 from app.crud.crud_meeting import insert_meeting, get_project_users
 from app.models.project_user import ProjectUser
 from app.models.flowy_user import FlowyUser
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 router = APIRouter()
 
@@ -46,7 +48,7 @@ async def stt_api(
     attendees_email: List[str] = Form(...),
     attendees_role: List[str] = Form(...),
     project_name: str = Form(...),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     print("=== stt_api called ===", flush=True)
     def split_items(items):
@@ -80,9 +82,7 @@ async def stt_api(
         **result,
         "attendees": attendees_list,
         "agenda": agenda,
-        "meeting_date": meeting_date,
-        "search_result": urls
-
+        "meeting_date": meeting_date
     }
 
 @router.post("/meeting-upload/")
@@ -116,8 +116,14 @@ async def meeting_upload_api(
     return {"meeting_id": meeting.meeting_id, "meeting_audio_path": file_location}
 
 @router.get("/project-users/{project_id}")
-async def get_project_users(project_id: str, db: Session = Depends(get_db)):
-    project_users = db.query(ProjectUser).filter(ProjectUser.project_id == project_id).all()
+async def get_project_users(
+    project_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    # 비동기 쿼리 실행
+    stmt = select(ProjectUser).where(ProjectUser.project_id == project_id)
+    result = await db.execute(stmt)
+    project_users = result.scalars().all()
     
     print("=== Project Users Query Result ===")
     print(f"Project ID: {project_id}")
@@ -125,7 +131,11 @@ async def get_project_users(project_id: str, db: Session = Depends(get_db)):
     
     users = []
     for pu in project_users:
-        flowy_user = db.query(FlowyUser).filter(FlowyUser.user_id == pu.user_id).first()
+        # 비동기 쿼리 실행
+        stmt = select(FlowyUser).where(FlowyUser.user_id == pu.user_id)
+        result = await db.execute(stmt)
+        flowy_user = result.scalar_one_or_none()
+        
         if flowy_user:
             print(f"\nUser ID: {pu.user_id}")
             print(f"Role ID: {pu.role_id}")
@@ -139,7 +149,6 @@ async def get_project_users(project_id: str, db: Session = Depends(get_db)):
                 "user_jobname": flowy_user.user_jobname
             })
     
-    # print("================================")
     return {"users": users}
 
 @router.post("/analyze-meeting/")

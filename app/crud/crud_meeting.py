@@ -1,4 +1,5 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from uuid import uuid4
 from datetime import datetime
 from app.models.meeting import Meeting  # 실제 모델 경로에 맞게 수정
@@ -11,7 +12,7 @@ from typing import List, Dict, Optional
 
 # meeting 저장 함수
 async def insert_meeting(
-    db: Session,
+    db: AsyncSession,
     project_id: str,
     meeting_title: str,
     meeting_agenda: str,
@@ -27,13 +28,13 @@ async def insert_meeting(
         meeting_audio_path=meeting_audio_path
     )
     db.add(meeting)
-    db.commit()
-    db.refresh(meeting)
+    await db.commit()
+    await db.refresh(meeting)
     return meeting 
 
 
 # summary_log 저장 함수
-async def insert_summary_log(db: Session, summary_contents: dict, meeting_id: str):
+async def insert_summary_log(db: AsyncSession, summary_contents: dict, meeting_id: str):
     print(f"insert_summary_log called! summary_contents={summary_contents}", flush=True)
     from app.models import SummaryLog
     
@@ -47,12 +48,12 @@ async def insert_summary_log(db: Session, summary_contents: dict, meeting_id: st
         meeting_id=meeting_id
     )
     db.add(summary_log)
-    db.commit()
-    db.refresh(summary_log)
+    await db.commit()
+    await db.refresh(summary_log)
     return summary_log
 
 # 역할분담 로그 저장 함수
-async def insert_task_assign_log(db: Session, assigned_roles: dict, meeting_id: str):
+async def insert_task_assign_log(db: AsyncSession, assigned_roles: dict, meeting_id: str):
     # print(f"insert_task_assign_log called! assigned_roles={assigned_roles}", flush=True)
     from app.models import TaskAssignLog
     task_assign_log = TaskAssignLog(
@@ -62,18 +63,19 @@ async def insert_task_assign_log(db: Session, assigned_roles: dict, meeting_id: 
         meeting_id=meeting_id
     )
     db.add(task_assign_log)
-    db.commit()
-    db.refresh(task_assign_log)
+    await db.commit()
+    await db.refresh(task_assign_log)
     return task_assign_log
 
 # feedbacktype_id 매핑 함수
-def get_feedback_type_map(db):
+async def get_feedback_type_map(db: AsyncSession):
     from app.models import FeedbackType
-    rows = db.query(FeedbackType).all()
+    result = await db.execute(select(FeedbackType))
+    rows = result.scalars().all()
     return {row.feedbacktype_name: row.feedbacktype_id for row in rows}
 
 # 피드백 저장 함수
-async def insert_feedback_log(db: Session, feedback_detail: dict, feedbacktype_id: str = None):
+async def insert_feedback_log(db: AsyncSession, feedback_detail: dict, feedbacktype_id: str = None):
   
     from app.models import Feedback
     feedback = Feedback(
@@ -83,27 +85,26 @@ async def insert_feedback_log(db: Session, feedback_detail: dict, feedbacktype_i
         feedback_created_date=datetime.now()
     )
     db.add(feedback)
-    db.commit()
-    db.refresh(feedback)
+    await db.commit()
+    await db.refresh(feedback)
     return feedback 
 
 
 # 모든 피드백 로그 저장 함수
-async def insert_all_feedback_logs(db, feedback_dict, meeting_id):
-    feedback_type_map = get_feedback_type_map(db)
+async def insert_all_feedback_logs(db: AsyncSession, feedback_dict: dict, meeting_id: str):
+    feedback_type_map = await get_feedback_type_map(db)
     for key, value in feedback_dict.items():
         feedbacktype_id = feedback_type_map.get(key)
         if feedbacktype_id:
             await insert_feedback_log(
                 db=db,
                 feedback_detail={key: value},
-                feedbacktype_id=feedbacktype_id,
-                meeting_id=meeting_id
+                feedbacktype_id=feedbacktype_id
             )
 
 
-def get_project_users(db: Session, project_id: str) -> List[Dict]:
-    result = db.query(
+async def get_project_users(db: AsyncSession, project_id: str) -> List[Dict]:
+    stmt = select(
         FlowyUser.user_id,
         FlowyUser.user_name,
         FlowyUser.user_email,
@@ -114,9 +115,12 @@ def get_project_users(db: Session, project_id: str) -> List[Dict]:
     ).join(
         ProjectUser,
         FlowyUser.user_id == ProjectUser.user_id
-    ).filter(
+    ).where(
         ProjectUser.project_id == project_id
-    ).all()
+    )
+    
+    result = await db.execute(stmt)
+    users = result.all()
     
     return [
         {
@@ -128,6 +132,6 @@ def get_project_users(db: Session, project_id: str) -> List[Dict]:
             "user_jobname": user.user_jobname,
             "role_id": user.role_id
         }
-        for user in result
+        for user in users
     ]
 

@@ -9,7 +9,11 @@ class Settings:
     VERSION: str = "0.1.0"
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
     SERPAPI_API_KEY: str = os.getenv("SERPAPI_API_KEY")
-    CONNECTION_STRING: str = os.getenv("CONNECTION_STRING")
+    
+    # 비동기 데이터베이스 연결 문자열
+    CONNECTION_STRING: str = os.getenv("CONNECTION_STRING", "").replace(
+        "postgresql://", "postgresql+asyncpg://"
+    )
 
     SECRET_KEY: str = os.getenv("SECRET_KEY")
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID")
