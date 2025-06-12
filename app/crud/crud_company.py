@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from app.models import Company, Sysrole
 
+
 # 회사 목록과 시스템 역할 목록 함께 조회 (조인 없이)
 async def get_signup_meta(db: AsyncSession):
     # 회사 + 직급 로딩

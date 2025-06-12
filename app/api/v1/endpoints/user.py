@@ -7,13 +7,18 @@ from datetime import timedelta
 from app.core.security import verify_password
 from app.core.config import settings
 from app.schemas.signup_info import SocialUserCreate, UserCreate, LoginInfo, TokenPayload
-from app.crud.crud_user import create_user, authenticate_user, only_authenticate_email, get_projects_for_user
+from app.schemas.mypage import UserUpdateRequest
+from app.crud.crud_user import create_user, authenticate_user, only_authenticate_email, get_projects_for_user, update_user_info
 from app.crud.crud_company import get_signup_meta
 from app.db.db_session import get_db_session
 from app.services.signup_service.auth import create_access_token, verify_token, verify_access_token
 from app.services.signup_service.google_auth import oauth
 from jose import jwt, JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
+
+
+
 import json
 
 BACKEND_URI = settings.BACKEND_URI
@@ -65,7 +70,7 @@ async def signup(user: UserCreate, db: AsyncSession = Depends(get_db_session)):
 
 
 @router.post("/login")
-async def login(user: LoginInfo, response: Response, db: Session = Depends(get_db_session)):
+async def login(user: LoginInfo, response: Response, db: AsyncSession = Depends(get_db_session)):
     auth_user = await authenticate_user(db, user.email, user.password)
 
     
@@ -251,3 +256,24 @@ async def read_one_user(request: Request, db: AsyncSession = Depends(get_db_sess
     user_info = await only_authenticate_email(db, user.email);
 
     return user_info;
+
+@router.put("/update")
+async def update_user(
+    request: Request,
+    user_update: UserUpdateRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="인증 실패")
+
+    try:
+        user: TokenPayload = await verify_access_token(token)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="인증 실패")
+
+    user_data = await update_user_info(user.id, user_update, session)
+    return {
+        "message": "User updated successfully",
+        "user": user_data
+    }
