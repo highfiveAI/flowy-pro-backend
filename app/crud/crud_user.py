@@ -8,11 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+
 async def create_user(db: AsyncSession, user: UserCreate):
     hashed_password = (
         pwd_context.hash(user.password) if user.password
         else pwd_context.hash("social_dummy_password")
     )
+
 
     db_user = FlowyUser(
         user_name=user.name,
@@ -43,24 +45,19 @@ async def create_user(db: AsyncSession, user: UserCreate):
     await db.refresh(db_user)
     return db_user
 
-# async def authenticate_user(db: AsyncSession, email: str, password: str):
-#     stmt = select(FlowyUser).where(FlowyUser.user_email == email)
-#     result = await db.execute(stmt)
-#     user = result.scalar_one_or_none()
 
-#     if not user:
-#         return None
-#     if not verify_password(password, user.user_password):
-#         return None
-#     return user
+async def authenticate_user(db: AsyncSession, email: str, password: str):
+    stmt = select(FlowyUser).where(FlowyUser.user_email == email)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
 
-def authenticate_user(db: Session, email: str, password: str):
-    user = db.query(FlowyUser).filter(FlowyUser.user_email == email).first()
     if not user:
         return None
     if not verify_password(password, user.user_password):
-        return None
+         return None
     return user
+
+
 
 async def only_authenticate_email(db: AsyncSession, email: str):
     stmt = select(FlowyUser).options(joinedload(FlowyUser.company)).where(FlowyUser.user_email == email)
