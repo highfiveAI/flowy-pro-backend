@@ -46,16 +46,16 @@ async def create_user(db: AsyncSession, user: UserCreate):
     return db_user
 
 
- async def authenticate_user(db: AsyncSession, email: str, password: str):
-     stmt = select(FlowyUser).where(FlowyUser.user_email == email)
-     result = await db.execute(stmt)
-     user = result.scalar_one_or_none()
+async def authenticate_user(db: AsyncSession, email: str, password: str):
+    stmt = select(FlowyUser).where(FlowyUser.user_email == email)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
 
     if not user:
         return None
-     if not verify_password(password, user.user_password):
+    if not verify_password(password, user.user_password):
          return None
-     return user
+    return user
 
 
 
