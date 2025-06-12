@@ -4,7 +4,7 @@ from datetime import datetime
 from app.models.meeting import Meeting  # 실제 모델 경로에 맞게 수정
 from app.models.project_user import ProjectUser
 from app.models.flowy_user import FlowyUser
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 # 아래는 예시 모델 import (실제 모델 경로/이름에 맞게 수정 필요)
 # from app.models import SummaryLog, TaskAssignLog, Feedback
@@ -33,7 +33,7 @@ async def insert_meeting(
 
 
 # summary_log 저장 함수
-async def insert_summary_log(db: Session, summary_contents: dict):
+async def insert_summary_log(db: Session, summary_contents: dict, meeting_id: str):
     print(f"insert_summary_log called! summary_contents={summary_contents}", flush=True)
     from app.models import SummaryLog
     
@@ -43,7 +43,8 @@ async def insert_summary_log(db: Session, summary_contents: dict):
     summary_log = SummaryLog(
         summary_log_id=str(uuid4()),
         updated_summary_contents={"assigned_todos": assigned_todos},  # assigned_todos만 저장
-        updated_summary_date=datetime.now()
+        updated_summary_date=datetime.now(),
+        meeting_id=meeting_id
     )
     db.add(summary_log)
     db.commit()
@@ -51,22 +52,29 @@ async def insert_summary_log(db: Session, summary_contents: dict):
     return summary_log
 
 # 역할분담 로그 저장 함수
-async def insert_task_assign_log(db: Session, assigned_roles: dict):
-    print(f"insert_task_assign_log called! assigned_roles={assigned_roles}", flush=True)
+async def insert_task_assign_log(db: Session, assigned_roles: dict, meeting_id: str):
+    # print(f"insert_task_assign_log called! assigned_roles={assigned_roles}", flush=True)
     from app.models import TaskAssignLog
     task_assign_log = TaskAssignLog(
         task_assign_log_id=str(uuid4()),
         updated_task_assign_contents=assigned_roles,
-        updated_task_assign_date=datetime.now()
+        updated_task_assign_date=datetime.now(),
+        meeting_id=meeting_id
     )
     db.add(task_assign_log)
     db.commit()
     db.refresh(task_assign_log)
     return task_assign_log
 
+# feedbacktype_id 매핑 함수
+def get_feedback_type_map(db):
+    from app.models import FeedbackType
+    rows = db.query(FeedbackType).all()
+    return {row.feedbacktype_name: row.feedbacktype_id for row in rows}
+
 # 피드백 저장 함수
 async def insert_feedback_log(db: Session, feedback_detail: dict, feedbacktype_id: str = None):
-    print(f"insert_feedback_log called! feedback_detail={feedback_detail}", flush=True)
+  
     from app.models import Feedback
     feedback = Feedback(
         feedback_id=str(uuid4()),
@@ -78,6 +86,21 @@ async def insert_feedback_log(db: Session, feedback_detail: dict, feedbacktype_i
     db.commit()
     db.refresh(feedback)
     return feedback 
+
+
+# 모든 피드백 로그 저장 함수
+async def insert_all_feedback_logs(db, feedback_dict, meeting_id):
+    feedback_type_map = get_feedback_type_map(db)
+    for key, value in feedback_dict.items():
+        feedbacktype_id = feedback_type_map.get(key)
+        if feedbacktype_id:
+            await insert_feedback_log(
+                db=db,
+                feedback_detail={key: value},
+                feedbacktype_id=feedbacktype_id,
+                meeting_id=meeting_id
+            )
+
 
 def get_project_users(db: Session, project_id: str) -> List[Dict]:
     result = db.query(

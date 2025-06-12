@@ -57,8 +57,9 @@ async def authenticate_user(db: AsyncSession, login_id: str, password: str):
     if not user:
         return None
     if not verify_password(password, user.user_password):
-         return None
+        return None
     return user
+
 
 async def only_authenticate_email(db: AsyncSession, email: str):
     stmt = select(FlowyUser).options(joinedload(FlowyUser.company)).where(FlowyUser.user_email == email)

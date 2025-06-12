@@ -222,7 +222,7 @@ async def google_callback(request: Request, response: Response, db: AsyncSession
 
     # 4) 처리 후 원하는 곳으로 리다이렉트하거나 토큰 반환 등 응답 처리
     # 여기서는 예시로 성공 페이지나 프론트엔드 주소로 리다이렉트
-    return redirect_response  # 또는 프론트엔드 URL
+    return redirect_response  # 또는 프론트엔드 URL 
 
 # 프로젝트 유저들 get
 @router.get("/projects/{user_id}")
