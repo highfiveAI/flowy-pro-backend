@@ -63,6 +63,11 @@ class CompanyUpdate(CompanyBase):
     pass
 
 
+class CompanyStatusUpdate(BaseModel):
+    service_status: bool
+    service_enddate: datetime | None = None
+
+
 class CompanyResponse(CompanyBase):
     company_id: UUID
 
@@ -87,6 +92,7 @@ class PositionUpdate(PositionBase):
 
 class PositionResponse(PositionBase):
     position_id: UUID
+    position_company_id: UUID
 
     class Config:
         from_attributes = True
@@ -96,117 +102,135 @@ router = APIRouter()
 
 # 사용자 관리 API
 @router.post("/users/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def create_user(user: UserCreate):
+async def create_user(user: UserCreate):
     """새로운 사용자를 생성합니다."""
     crud = UserCRUD()
-    return crud.create(user.model_dump())
+    return await crud.create(user.model_dump())
 
 
 @router.get("/users/{user_id}", response_model=UserResponse)
-def get_user(user_id: UUID):
+async def get_user(user_id: UUID):
     """특정 사용자의 정보를 조회합니다."""
     crud = UserCRUD()
-    return crud.get_by_id(user_id)
+    return await crud.get_by_id(user_id)
 
 
 @router.get("/users/", response_model=List[UserResponse])
-def list_users(skip: int = 0, limit: int = 100):
+async def list_users(skip: int = 0, limit: int = 100):
     """사용자 목록을 조회합니다."""
     crud = UserCRUD()
-    return crud.get_all(skip=skip, limit=limit)
+    return await crud.get_all(skip=skip, limit=limit)
 
 
 @router.put("/users/{user_id}", response_model=UserResponse)
-def update_user(user_id: UUID, user: UserUpdate):
+async def update_user(user_id: UUID, user: UserUpdate):
     """사용자 정보를 수정합니다."""
     crud = UserCRUD()
-    return crud.update(user_id, user.model_dump(exclude_unset=True))
+    return await crud.update(user_id, user.model_dump(exclude_unset=True))
 
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(user_id: UUID):
+async def delete_user(user_id: UUID):
     """사용자를 삭제합니다."""
     crud = UserCRUD()
-    crud.delete(user_id)
+    await crud.delete(user_id)
     return None
 
 
 @router.put("/users/{user_id}/status", response_model=UserResponse)
-def update_user_status(user_id: UUID, status_update: UserStatusUpdate):
+async def update_user_status(user_id: UUID, status_update: UserStatusUpdate):
     """사용자의 승인 상태를 변경합니다."""
     crud = UserCRUD()
-    return crud.update_user_status(user_id, status_update.status)
+    return await crud.update_user_status(user_id, status_update.status)
 
 
 # 회사 관리 API
 @router.post("/companies/", response_model=CompanyResponse, status_code=status.HTTP_201_CREATED)
-def create_company(company: CompanyCreate):
+async def create_company(company: CompanyCreate):
     """새로운 회사를 생성합니다."""
     crud = CompanyCRUD()
-    return crud.create(company.model_dump())
+    return await crud.create(company.model_dump())
 
 
 @router.get("/companies/{company_id}", response_model=CompanyResponse)
-def get_company(company_id: UUID):
+async def get_company(company_id: UUID):
     """특정 회사의 정보를 조회합니다."""
     crud = CompanyCRUD()
-    return crud.get_by_id(company_id)
+    return await crud.get_by_id(company_id)
 
 
 @router.get("/companies/", response_model=List[CompanyResponse])
-def list_companies(skip: int = 0, limit: int = 100):
+async def list_companies(skip: int = 0, limit: int = 100):
     """회사 목록을 조회합니다."""
     crud = CompanyCRUD()
-    return crud.get_all(skip=skip, limit=limit)
+    return await crud.get_all(skip=skip, limit=limit)
 
 
 @router.put("/companies/{company_id}", response_model=CompanyResponse)
-def update_company(company_id: UUID, company: CompanyUpdate):
+async def update_company(company_id: UUID, company: CompanyUpdate):
     """회사 정보를 수정합니다."""
     crud = CompanyCRUD()
-    return crud.update(company_id, company.model_dump(exclude_unset=True))
+    return await crud.update(company_id, company.model_dump(exclude_unset=True))
 
 
 @router.delete("/companies/{company_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_company(company_id: UUID):
+async def delete_company(company_id: UUID):
     """회사를 삭제합니다."""
     crud = CompanyCRUD()
-    crud.delete(company_id)
+    await crud.delete(company_id)
     return None
+
+
+@router.put("/companies/{company_id}/status", response_model=CompanyResponse)
+async def update_company_status(company_id: UUID, status_update: CompanyStatusUpdate):
+    """회사의 서비스 상태를 변경합니다."""
+    crud = CompanyCRUD()
+    return await crud.update_service_status(
+        company_id, 
+        status_update.service_status,
+        status_update.service_enddate
+    )
 
 
 # 직급 관리 API
 @router.post("/positions/", response_model=PositionResponse, status_code=status.HTTP_201_CREATED)
-def create_position(position: PositionCreate):
+async def create_position(position: PositionCreate):
     """새로운 직급을 생성합니다."""
     crud = PositionCRUD()
-    return crud.create(position.model_dump())
+    return await crud.create(position.model_dump())
 
 
 @router.get("/positions/{position_id}", response_model=PositionResponse)
-def get_position(position_id: UUID):
+async def get_position(position_id: UUID):
     """특정 직급의 정보를 조회합니다."""
     crud = PositionCRUD()
-    return crud.get_by_id(position_id)
+    return await crud.get_by_id(position_id)
 
 
 @router.get("/positions/", response_model=List[PositionResponse])
-def list_positions(skip: int = 0, limit: int = 100):
+async def list_positions(skip: int = 0, limit: int = 100):
     """직급 목록을 조회합니다."""
     crud = PositionCRUD()
-    return crud.get_all(skip=skip, limit=limit)
+    return await crud.get_all(skip=skip, limit=limit)
 
 
 @router.put("/positions/{position_id}", response_model=PositionResponse)
-def update_position(position_id: UUID, position: PositionUpdate):
+async def update_position(position_id: UUID, position: PositionUpdate):
     """직급 정보를 수정합니다."""
     crud = PositionCRUD()
-    return crud.update(position_id, position.model_dump(exclude_unset=True))
+    return await crud.update(position_id, position.model_dump(exclude_unset=True))
 
 
 @router.delete("/positions/{position_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_position(position_id: UUID):
+async def delete_position(position_id: UUID):
     """직급을 삭제합니다."""
     crud = PositionCRUD()
-    crud.delete(position_id)
-    return None 
+    await crud.delete(position_id)
+    return None
+
+
+@router.get("/companies/{company_id}/positions/", response_model=List[PositionResponse])
+async def get_company_positions(company_id: UUID):
+    """특정 회사의 직급 목록을 조회합니다."""
+    crud = PositionCRUD()
+    return await crud.get_by_company_id(company_id) 

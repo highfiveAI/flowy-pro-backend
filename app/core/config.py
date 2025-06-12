@@ -9,7 +9,11 @@ class Settings:
     VERSION: str = "0.1.0"
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
     SERPAPI_API_KEY: str = os.getenv("SERPAPI_API_KEY")
-    CONNECTION_STRING: str = os.getenv("CONNECTION_STRING")
+    
+    # 비동기 데이터베이스 연결 문자열
+    CONNECTION_STRING: str = os.getenv("CONNECTION_STRING", "").replace(
+        "postgresql://", "postgresql+asyncpg://"
+    )
 
     SECRET_KEY: str = os.getenv("SECRET_KEY")
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID")
@@ -22,7 +26,7 @@ class Settings:
     POSTGRES_DB: str = os.getenv("POSTGRES_DB")
     POSTGRES_PORT: str = os.getenv("POSTGRES_PORT")
     POSTGRES_HOST: str = os.getenv("POSTGRES_HOST")
-    COOKIE_SECURE: str = os.getenv("COOKIE_SECURE")
+    COOKIE_SECURE: bool = os.getenv("COOKIE_SECURE", "false").lower() == "true"
     COOKIE_SAMESITE: str = os.getenv("COOKIE_SAMESITE")
 
     # 여기에 추가 환경변수 및 공통 설정 작성 가능

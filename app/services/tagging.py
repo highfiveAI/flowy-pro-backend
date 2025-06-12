@@ -83,7 +83,7 @@ def gpt_split_sentences(text: str) -> list:
         return [text]
 
 
-async def tag_chunks_async(project_name: str, subject: str, chunks: list, attendees_list: List[Dict[str, Any]] = None, agenda: str = None, meeting_date: str = None, db: Session = None) -> dict:
+async def tag_chunks_async(project_name: str, subject: str, chunks: list, attendees_list: List[Dict[str, Any]] = None, agenda: str = None, meeting_date: str = None, db: Session = None, meeting_id: str = None) -> dict:
     print(f"[tag_chunks] 전달받은 subject: {subject}", flush=True)
     print(f"[tag_chunks] 전달받은 attendees_list: {attendees_list}", flush=True)
     print(f"[tag_chunks] 전달받은 agenda: {agenda}", flush=True)
@@ -141,15 +141,14 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
     todos_result = extract_todos(subject, chunks, attendees_list, sentence_scores, agenda, meeting_date)
     assigned_roles = todos_result.get("assigned_roles")
     
-    # print(f"[tag_chunks_async] db 값: {db}", flush=True)
-    # # DB 저장 (db가 있을 때만)
-    # if db is not None:
-    #     print(f"[tagging.py] insert_summary_log 호출: summary_result={summary_result}", flush=True)
-    #     insert_summary_log(db, summary_result["summary"] if isinstance(summary_result, dict) and "summary" in summary_result else summary_result)
-    #     print(f"[tagging.py] insert_task_assign_log 호출: assigned_roles={assigned_roles}", flush=True)
-    #     insert_task_assign_log(db, assigned_roles or {})
-    #     print(f"[tagging.py] insert_feedback_log 호출: feedback_result={feedback_result}", flush=True)
-    #     insert_feedback_log(db, feedback_result["feedback"] if isinstance(feedback_result, dict) and "feedback" in feedback_result else feedback_result)
+    # DB 저장 (db가 있을 때만)
+    if db is not None:
+        print(f"[tagging.py] insert_summary_log 호출: summary_result={summary_result}", flush=True)
+        await insert_summary_log(db, summary_result["summary"] if isinstance(summary_result, dict) and "summary" in summary_result else summary_result, meeting_id)
+        print(f"[tagging.py] insert_task_assign_log 호출: assigned_roles={assigned_roles}", flush=True)
+        await insert_task_assign_log(db, assigned_roles or {}, meeting_id)
+        print(f"[tagging.py] insert_feedback_log 호출: feedback_result={feedback_result}", flush=True)
+        await insert_feedback_log(db, feedback_result["feedback"] if isinstance(feedback_result, dict) and "feedback" in feedback_result else feedback_result, meeting_id)
 
     return {
         "project_name": project_name,

@@ -5,14 +5,18 @@ import logging
 from fastapi import HTTPException, status
 import os
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import sessionmaker, Session, joinedload, contains_eager
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.future import select
 from app.core.config import settings
 from app.models.flowy_user import FlowyUser
 from app.models.signup_log import SignupLog
 from app.models.company import Company
 from app.models.company_position import CompanyPosition
 from app.models.sysrole import Sysrole
+from passlib.context import CryptContext
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -20,72 +24,115 @@ logger = logging.getLogger(__name__)
 # .env 파일에서 DB 설정 로드
 load_dotenv()
 
-# DB 연결 설정
-DB_URL = settings.CONNECTION_STRING
-# DB_URL = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/flowy_db")
-engine = create_engine(
+# DB 연결 설정 (비동기)
+DB_URL = settings.CONNECTION_STRING.replace('postgresql://', 'postgresql+asyncpg://')
+engine = create_async_engine(
     DB_URL,
-    connect_args={'options': '-c client_encoding=utf8'}
+    echo=True
 )
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+AsyncSessionLocal = sessionmaker(
+    engine, class_=AsyncSession, expire_on_commit=False
+)
 
 
 class UserCRUD:
     def __init__(self):
-        self.db: Session = SessionLocal()
+        self.db: AsyncSession = AsyncSessionLocal()
 
-    def __del__(self):
-        if hasattr(self, 'db'):
-            self.db.close()
+    async def __aenter__(self):
+        return self
 
-    def create(self, user_data: dict) -> FlowyUser:
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.db.close()
+
+    async def create(self, user_data: dict) -> dict:
         """새로운 사용자를 생성합니다."""
         try:
             # 이메일 중복 검사
-            if self._get_user_by_email(user_data["user_email"]):
+            existing_user = await self._get_user_by_email(user_data["user_email"])
+            if existing_user:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="이미 등록된 이메일입니다."
                 )
 
             # 로그인 ID 중복 검사
-            if self._get_user_by_login_id(user_data["user_login_id"]):
+            existing_user = await self._get_user_by_login_id(user_data["user_login_id"])
+            if existing_user:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="이미 사용 중인 로그인 ID입니다."
                 )
 
+            # 비밀번호 해싱
+            if "user_password" in user_data:
+                user_data["user_password"] = pwd_context.hash(user_data["user_password"])
+            
+            # 로그인 타입 설정
+            user_data["user_login_type"] = "general"
+
             # 사용자 생성
             user = FlowyUser(**user_data)
             self.db.add(user)
-            self.db.flush()  # user_id를 얻기 위해 flush
+            await self.db.flush()  # user_id를 얻기 위해 flush
 
             # 회원가입 이력 생성
             signup_log = SignupLog(
                 signup_log_id=uuid4(),
                 signup_request_user_id=user.user_id,
-                signup_update_user_id=UUID("3c89c6ab-c755-4925-8e64-ab134668a253"),
+                signup_update_user_id=UUID("7f2d2784-b12b-4b8d-a9fc-3857e52f9e96"),
                 signup_status_changed_date=datetime.now(),
                 signup_completed_status="Approved" # Approved, Pending, Rejected
             )
             self.db.add(signup_log)
             
-            self.db.commit()
-            self.db.refresh(user)
-            return user
+            await self.db.commit()
+            await self.db.refresh(user)
+
+            # 관련 정보 조회
+            company_query = select(Company).filter(Company.company_id == user.user_company_id)
+            position_query = select(CompanyPosition).filter(CompanyPosition.position_id == user.user_position_id)
+            sysrole_query = select(Sysrole).filter(Sysrole.sysrole_id == user.user_sysrole_id)
+
+            company_result = await self.db.execute(company_query)
+            position_result = await self.db.execute(position_query)
+            sysrole_result = await self.db.execute(sysrole_query)
+
+            company = company_result.scalar_one_or_none()
+            position = position_result.scalar_one_or_none()
+            sysrole = sysrole_result.scalar_one_or_none()
+
+            # 응답 데이터 구성
+            return {
+                "user_id": user.user_id,
+                "user_login_id": user.user_login_id,
+                "user_email": user.user_email,
+                "user_name": user.user_name,
+                "user_phonenum": user.user_phonenum,
+                "user_company_id": user.user_company_id,
+                "user_dept_name": user.user_dept_name,
+                "user_team_name": user.user_team_name,
+                "user_position_id": user.user_position_id,
+                "user_jobname": user.user_jobname,
+                "user_sysrole_id": user.user_sysrole_id,
+                "signup_completed_status": signup_log.signup_completed_status,
+                "company_name": company.company_name if company else None,
+                "position_name": position.position_name if position else None,
+                "sysrole_name": sysrole.sysrole_name if sysrole else None
+            }
             
         except Exception as e:
-            self.db.rollback()
+            await self.db.rollback()
             raise e
 
-    def get_all(self, skip: int = 0, limit: int = 100) -> List[dict]:
+    async def get_all(self, skip: int = 0, limit: int = 100) -> List[dict]:
         """모든 사용자를 회원가입 상태와 함께 조회합니다."""
         try:
             print(f"사용자 목록 조회 시작 - skip: {skip}, limit: {limit}")
             
             # FlowyUser와 관련 테이블들을 조인하여 조회
             query = (
-                self.db.query(
+                select(
                     FlowyUser,
                     SignupLog.signup_completed_status,
                     Company.company_name,
@@ -101,7 +148,8 @@ class UserCRUD:
             )
             
             print(f"실행될 쿼리: {str(query)}")
-            results = query.all()
+            result = await self.db.execute(query)
+            results = result.all()
             print(f"조회된 사용자 수: {len(results)}")
             
             # 결과를 딕셔너리 리스트로 변환
@@ -152,13 +200,13 @@ class UserCRUD:
                 detail=f"사용자 목록 조회 중 오류 발생: {str(e)}"
             )
 
-    def get_by_id(self, user_id: UUID) -> dict:
+    async def get_by_id(self, user_id: UUID) -> dict:
         """ID로 사용자를 회원가입 상태와 함께 조회합니다."""
         try:
             print(f"사용자 조회 시작 - user_id: {user_id}")
             
-            result = (
-                self.db.query(
+            query = (
+                select(
                     FlowyUser,
                     SignupLog.signup_completed_status,
                     Company.company_name,
@@ -170,17 +218,19 @@ class UserCRUD:
                 .outerjoin(CompanyPosition, FlowyUser.user_position_id == CompanyPosition.position_id)
                 .outerjoin(Sysrole, FlowyUser.user_sysrole_id == Sysrole.sysrole_id)
                 .filter(FlowyUser.user_id == user_id)
-                .first()
             )
             
-            if not result:
+            result = await self.db.execute(query)
+            user_result = result.first()
+            
+            if not user_result:
                 print(f"사용자를 찾을 수 없음 - user_id: {user_id}")
                 raise HTTPException(
                     status_code=404,
                     detail="사용자를 찾을 수 없습니다."
                 )
             
-            user, signup_completed_status, company_name, position_name, sysrole_name = result
+            user, signup_completed_status, company_name, position_name, sysrole_name = user_result
             
             # 결과를 딕셔너리로 변환
             user_dict = {
@@ -213,14 +263,23 @@ class UserCRUD:
                 detail=f"사용자 조회 중 오류 발생: {str(e)}"
             )
 
-    def update(self, user_id: UUID, user_data: dict) -> FlowyUser:
+    async def update(self, user_id: UUID, user_data: dict) -> dict:
         """사용자 정보를 수정합니다."""
         try:
-            user = self.get_by_id(user_id)
+            # 사용자 객체 직접 조회
+            query = select(FlowyUser).filter(FlowyUser.user_id == user_id)
+            result = await self.db.execute(query)
+            user = result.scalar_one_or_none()
+            
+            if not user:
+                raise HTTPException(
+                    status_code=404,
+                    detail="사용자를 찾을 수 없습니다."
+                )
 
             # 이메일 중복 검사
             if "user_email" in user_data:
-                existing_user = self._get_user_by_email(user_data["user_email"])
+                existing_user = await self._get_user_by_email(user_data["user_email"])
                 if existing_user and existing_user.user_id != user_id:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
@@ -229,52 +288,93 @@ class UserCRUD:
 
             # 로그인 ID 중복 검사
             if "user_login_id" in user_data:
-                existing_user = self._get_user_by_login_id(user_data["user_login_id"])
+                existing_user = await self._get_user_by_login_id(user_data["user_login_id"])
                 if existing_user and existing_user.user_id != user_id:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="이미 사용 중인 로그인 ID입니다."
                     )
 
+            # 비밀번호 해싱
+            if "user_password" in user_data:
+                user_data["user_password"] = pwd_context.hash(user_data["user_password"])
+
             for key, value in user_data.items():
                 setattr(user, key, value)
 
-            self.db.commit()
-            self.db.refresh(user)
-            return user
+            await self.db.commit()
+            await self.db.refresh(user)
+
+            # 관련 정보 조회
+            company_query = select(Company).filter(Company.company_id == user.user_company_id)
+            position_query = select(CompanyPosition).filter(CompanyPosition.position_id == user.user_position_id)
+            sysrole_query = select(Sysrole).filter(Sysrole.sysrole_id == user.user_sysrole_id)
+            signup_log_query = select(SignupLog).filter(SignupLog.signup_request_user_id == user_id)
+
+            company_result = await self.db.execute(company_query)
+            position_result = await self.db.execute(position_query)
+            sysrole_result = await self.db.execute(sysrole_query)
+            signup_log_result = await self.db.execute(signup_log_query)
+
+            company = company_result.scalar_one_or_none()
+            position = position_result.scalar_one_or_none()
+            sysrole = sysrole_result.scalar_one_or_none()
+            signup_log = signup_log_result.scalar_one_or_none()
+
+            # 응답 데이터 구성
+            return {
+                "user_id": user.user_id,
+                "user_login_id": user.user_login_id,
+                "user_email": user.user_email,
+                "user_name": user.user_name,
+                "user_phonenum": user.user_phonenum,
+                "user_company_id": user.user_company_id,
+                "user_dept_name": user.user_dept_name,
+                "user_team_name": user.user_team_name,
+                "user_position_id": user.user_position_id,
+                "user_jobname": user.user_jobname,
+                "user_sysrole_id": user.user_sysrole_id,
+                "signup_completed_status": signup_log.signup_completed_status if signup_log else "Pending",
+                "company_name": company.company_name if company else None,
+                "position_name": position.position_name if position else None,
+                "sysrole_name": sysrole.sysrole_name if sysrole else None
+            }
+            
         except Exception as e:
-            self.db.rollback()
+            await self.db.rollback()
             raise e
 
-    def delete(self, user_id: UUID) -> None:
+    async def delete(self, user_id: UUID) -> None:
         """사용자를 삭제합니다."""
         try:
-            user = self.get_by_id(user_id)
-            self.db.delete(user)
-            self.db.commit()
+            user = await self.get_by_id(user_id)
+            await self.db.delete(user)
+            await self.db.commit()
         except Exception as e:
-            self.db.rollback()
+            await self.db.rollback()
             raise e
 
-    def _get_user_by_email(self, email: str) -> Optional[FlowyUser]:
+    async def _get_user_by_email(self, email: str) -> Optional[FlowyUser]:
         """이메일로 사용자를 조회합니다."""
-        return self.db.query(FlowyUser).filter(FlowyUser.user_email == email).first()
+        query = select(FlowyUser).filter(FlowyUser.user_email == email)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
 
-    def _get_user_by_login_id(self, login_id: str) -> Optional[FlowyUser]:
+    async def _get_user_by_login_id(self, login_id: str) -> Optional[FlowyUser]:
         """로그인 ID로 사용자를 조회합니다."""
-        return self.db.query(FlowyUser).filter(FlowyUser.user_login_id == login_id).first()
+        query = select(FlowyUser).filter(FlowyUser.user_login_id == login_id)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
 
-    def update_user_status(self, user_id: UUID, status: str) -> dict:
+    async def update_user_status(self, user_id: UUID, status: str) -> dict:
         """사용자의 승인 상태를 변경합니다."""
         try:
             print(f"사용자 상태 변경 시작 - user_id: {user_id}, status: {status}")
             
             # 사용자 존재 여부 확인
-            user = (
-                self.db.query(FlowyUser)
-                .filter(FlowyUser.user_id == user_id)
-                .first()
-            )
+            query = select(FlowyUser).filter(FlowyUser.user_id == user_id)
+            result = await self.db.execute(query)
+            user = result.scalar_one_or_none()
             
             if not user:
                 raise HTTPException(
@@ -283,11 +383,9 @@ class UserCRUD:
                 )
             
             # 기존 signup_log가 있는지 확인
-            signup_log = (
-                self.db.query(SignupLog)
-                .filter(SignupLog.signup_request_user_id == user_id)
-                .first()
-            )
+            signup_log_query = select(SignupLog).filter(SignupLog.signup_request_user_id == user_id)
+            signup_log_result = await self.db.execute(signup_log_query)
+            signup_log = signup_log_result.scalar_one_or_none()
             
             if signup_log:
                 # 기존 로그 업데이트
@@ -298,21 +396,21 @@ class UserCRUD:
                 signup_log = SignupLog(
                     signup_log_id=uuid4(),
                     signup_request_user_id=user_id,
-                    signup_update_user_id=UUID("3c89c6ab-c755-4925-8e64-ab134668a253"),  # 관리자 ID
+                    signup_update_user_id=UUID("7f2d2784-b12b-4b8d-a9fc-3857e52f9e96"),  # 관리자 ID
                     signup_status_changed_date=datetime.now(),
                     signup_completed_status=status
                 )
                 self.db.add(signup_log)
             
-            self.db.commit()
+            await self.db.commit()
             
             # 업데이트된 사용자 정보 반환
-            return self.get_by_id(user_id)
+            return await self.get_by_id(user_id)
             
         except HTTPException:
             raise
         except Exception as e:
-            self.db.rollback()
+            await self.db.rollback()
             print(f"사용자 상태 변경 중 오류 발생: {str(e)}")
             raise HTTPException(
                 status_code=500,

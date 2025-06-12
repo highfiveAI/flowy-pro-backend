@@ -1,0 +1,67 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: flowy-dev-app
+    ports:
+      - "8001:8000"  # 8001 포트로 개발 서버 실행
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SERPAPI_API_KEY=${SERPAPI_API_KEY}
+      - CONNECTION_STRING=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db-dev:5432/${POSTGRES_DB}
+      - SECRET_KEY=${SECRET_KEY}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      # 프론트엔드 컨테이너와 통신 시에는 서비스 이름을 사용
+      - FRONTEND_URI=${FRONTEND_URI} # 프론트엔드 컨테이너 내부 이름으로 변경
+      - BACKEND_URI=${BACKEND_URI}   # 백엔드 컨테이너 내부 이름으로 변경
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - POSTGRES_HOST=db-dev
+      - COOKIE_SECURE=false
+      - COOKIE_SAMESITE="Lax"
+    volumes:
+      - .:/app
+    depends_on:
+      - db-dev
+    restart: always
+
+  db-dev:
+    image: ankane/pgvector
+    container_name: flowy-dev-db
+    ports:
+      - "5433:5432"  # 5433 포트로 개발 DB 실행
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - pgdata-dev:/var/lib/postgresql/data
+    restart: always
+
+  # --- 프론트엔드 서비스 추가 시작 ---
+  frontend:
+    build:
+      context: ../flowy-pro-front # 프론트엔드 프로젝트 경로
+      dockerfile: Dockerfile.dev   # 위에서 생성한 Dockerfile 이름
+    container_name: flowy-dev-front
+    ports:
+      - "3001:5173"  # 호스트의 3001번 포트를 컨테이너의 5173번 포트에 매핑
+    volumes:
+      - ../flowy-pro-front:/app # 프론트엔드 소스 코드 볼륨 마운트
+        # node_modules 볼륨 추가
+      - /app/node_modules
+    environment:
+      # 프론트엔드가 백엔드 API를 호출할 때 사용할 URL
+      # 백엔드 컨테이너 이름 (flowy-dev-app)과 컨테이너 내부 포트 (8000) 사용
+      - VITE_API_URL=http://192.168.0.117:8001 # 프론트엔드가 백엔드를 호출할 때 사용
+    depends_on:
+      - app # 백엔드 서비스가 먼저 시작되도록 의존성 설정
+    restart: always
+  # --- 프론트엔드 서비스 추가 끝 ---
+
+volumes:
+  pgdata-dev:
