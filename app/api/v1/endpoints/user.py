@@ -8,11 +8,14 @@ from app.core.security import verify_password
 from app.core.config import settings
 from app.schemas.signup_info import SocialUserCreate, UserCreate, LoginInfo, TokenPayload
 from app.crud.crud_user import create_user, authenticate_user, only_authenticate_email, get_projects_for_user
-from app.api.deps import get_db_session
+from app.crud.crud_company import get_signup_meta
+from app.db.db_session import get_db_session
 from app.services.signup_service.auth import create_access_token, verify_token, verify_access_token
 from app.services.signup_service.google_auth import oauth
 from jose import jwt, JWTError
+from sqlalchemy.ext.asyncio import AsyncSession
 import json
+
 BACKEND_URI = settings.BACKEND_URI
 FRONTEND_URI = settings.FRONTEND_URI
 SECRET_KEY = settings.SECRET_KEY 
@@ -24,7 +27,7 @@ router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/users/jwtlogin")
 
 @router.post("/social_signup")
-async def social_signup(request: Request, user_data: SocialUserCreate, db: Session = Depends(get_db_session)):
+async def social_signup(request: Request, user_data: SocialUserCreate, db: AsyncSession = Depends(get_db_session)):
     token = request.cookies.get("signup_token")
     if not token:
         raise HTTPException(status_code=401, detail="토큰이 없습니다")
@@ -50,18 +53,21 @@ async def social_signup(request: Request, user_data: SocialUserCreate, db: Sessi
         team= user_data.team,
         position= user_data.position,
         job= user_data.job,
-        sysrole= user_data.sysrole
+        sysrole= user_data.sysrole,
+        login_type= user_data.login_type
     )
 
-    return create_user(db, new_user)
+    return await create_user(db, new_user)
 
 @router.post("/signup")
-async def signup(user: UserCreate, db: Session = Depends(get_db_session)):
-    return create_user(db, user)
+async def signup(user: UserCreate, db: AsyncSession = Depends(get_db_session)):
+    return await create_user(db, user)
+
 
 @router.post("/login")
 async def login(user: LoginInfo, response: Response, db: Session = Depends(get_db_session)):
     auth_user = await authenticate_user(db, user.email, user.password)
+
     
     if not auth_user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -72,7 +78,7 @@ async def login(user: LoginInfo, response: Response, db: Session = Depends(get_d
         email=auth_user.user_email
     )
 
-    access_token = create_access_token(
+    access_token = await create_access_token(
         data=payload.dict(),
         expires_delta=timedelta(minutes=30)
     )
@@ -101,13 +107,14 @@ async def logout(response: Response):
 
 # 로그인 → JWT 반환
 @router.post("/jwtlogin")
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db_session)):
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession  = Depends(get_db_session)):
+
     auth_user = await authenticate_user(db, form_data.username, form_data.password )
     
     if not auth_user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    access_token = create_access_token(
+    access_token = await create_access_token(
         data={"sub": form_data.username},
         expires_delta=timedelta(minutes=30)
     )
@@ -116,7 +123,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
 # 인증 테스트
 @router.get("/me")
 async def read_me(token: str = Depends(oauth2_scheme)):
-    username = verify_token(token)
+    username = await verify_token(token)
     return {"username": username}
 
 @router.get("/auth/check")
@@ -124,9 +131,8 @@ async def auth_check(request: Request):
     token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="인증 실패")
-
     try:
-        user: TokenPayload = verify_access_token(token)
+        user: TokenPayload = await verify_access_token(token)
     except ValueError:
         raise HTTPException(status_code=401, detail="인증 실패")
 
@@ -142,7 +148,7 @@ async def google_login(request: Request):
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 @router.get("/auth/google/callback")
-async def google_callback(request: Request, response: Response, db: Session = Depends(get_db_session)):
+async def google_callback(request: Request, response: Response, db: AsyncSession = Depends(get_db_session)):
     # 1) 구글에서 온 authorization code를 받아서 access token 요청
     token = await oauth.google.authorize_access_token(request)
     print(token)
@@ -164,10 +170,10 @@ async def google_callback(request: Request, response: Response, db: Session = De
     # print(request.session.get('email'))
     # print(name)
 
-    auth_user = only_authenticate_email(db, email)
+    auth_user = await only_authenticate_email(db, email)
 
     if not auth_user:
-        signup_token = create_access_token(
+        signup_token = await create_access_token(
         data={"sub": name,
             "email": email},
         expires_delta=timedelta(minutes=30)
@@ -191,7 +197,7 @@ async def google_callback(request: Request, response: Response, db: Session = De
         email=auth_user.user_email
     )
 
-    access_token = create_access_token(
+    access_token = await create_access_token(
         data=payload.dict(),
         expires_delta=timedelta(minutes=30)
     )
@@ -212,7 +218,7 @@ async def google_callback(request: Request, response: Response, db: Session = De
     return redirect_response  # 또는 프론트엔드 URL
 
 @router.get("/projects/{user_id}")
-async def read_projects_for_user(user_id: str, db: Session = Depends(get_db_session)):
+async def read_projects_for_user(user_id: str, db: AsyncSession = Depends(get_db_session)):
     # print("엔드포인트 호출됨")
     projects = await get_projects_for_user(db, user_id)
     # print("[프로젝트 목록 반환] user_id:", user_id, "projects:", projects)
@@ -222,4 +228,26 @@ async def read_projects_for_user(user_id: str, db: Session = Depends(get_db_sess
     ]
     return {"projects": projects_list}
 
-    
+@router.get("/signup/meta")
+async def read_company_names(db: AsyncSession = Depends(get_db_session)):
+    data = await get_signup_meta(db)
+
+    return data
+
+@router.get("/one")
+async def read_one_user(request: Request, db: AsyncSession = Depends(get_db_session)):
+
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="인증 실패")
+
+    try:
+        user: TokenPayload = await verify_access_token(token)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="인증 실패")
+
+    user_dict = json.loads(user.json())
+    print(user_dict)
+    user_info = await only_authenticate_email(db, user.email);
+
+    return user_info;

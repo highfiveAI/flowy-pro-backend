@@ -18,7 +18,8 @@ app = FastAPI()
 # 허용할 프론트엔드 주소 (Vite는 보통 5173 포트)
 origins = [
     "http://localhost:5173",  # Vite dev server
-    "https://main.d3o9djmc1cbi7u.amplifyapp.com" # 배포서버
+    "https://main.d3o9djmc1cbi7u.amplifyapp.com", # 배포서버
+    "http://192.168.0.117:3001" # 개발서버
 ]
 
 # CORS 미들웨어 추가

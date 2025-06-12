@@ -22,7 +22,6 @@ class Attendee(BaseModel):
     email: str
     role: str
 
-
 def parse_attendees(
     attendees: List[str] = Form(...)
 ):
@@ -99,6 +98,7 @@ async def stt_api(
             "https://static.example.com/assets/img.png"
         ]
         # print(f"서칭 결과물 : {search_result}")
+
         
 
 
@@ -112,6 +112,7 @@ async def stt_api(
         "agenda": agenda,
         "meeting_date": meeting_date,
         "search_result": urls
+
     }
 
 @router.post("/meeting-upload/")
@@ -172,3 +173,4 @@ async def get_project_users(project_id: str, db: Session = Depends(get_db)):
     return {"users": users}
 
     
+
