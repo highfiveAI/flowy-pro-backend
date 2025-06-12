@@ -12,10 +12,12 @@ from uuid import UUID
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+
 async def create_user(db: AsyncSession, user: UserCreate):
     hashed_password = (
         pwd_context.hash(user.password)
     )
+
 
     db_user = FlowyUser(
         user_name=user.name,
@@ -48,22 +50,15 @@ async def create_user(db: AsyncSession, user: UserCreate):
 
 async def authenticate_user(db: AsyncSession, login_id: str, password: str):
     stmt = select(FlowyUser).where(FlowyUser.user_login_id == login_id)
+
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
     if not user:
         return None
     if not verify_password(password, user.user_password):
-        return None
+         return None
     return user
-
-# def authenticate_user(db: Session, email: str, password: str):
-#     user = db.query(FlowyUser).filter(FlowyUser.user_email == email).first()
-#     if not user:
-#         return None
-#     if not verify_password(password, user.user_password):
-#         return None
-#     return user
 
 async def only_authenticate_email(db: AsyncSession, email: str):
     stmt = select(FlowyUser).options(joinedload(FlowyUser.company)).where(FlowyUser.user_email == email)
