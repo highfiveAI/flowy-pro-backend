@@ -112,4 +112,20 @@ class PositionCRUD:
         """직급 코드로 직급을 조회합니다."""
         query = select(CompanyPosition).filter(CompanyPosition.position_code == code)
         result = await self.db.execute(query)
-        return result.scalar_one_or_none() 
+        return result.scalar_one_or_none()
+
+    async def get_by_company_id(self, company_id: UUID) -> List[CompanyPosition]:
+        """회사 ID로 직급 목록을 조회합니다."""
+        try:
+            query = select(CompanyPosition).filter(CompanyPosition.position_company_id == company_id)
+            result = await self.db.execute(query)
+            positions = result.scalars().all()
+            
+            if not positions:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="해당 회사의 직급을 찾을 수 없습니다."
+                )
+            return positions
+        except Exception as e:
+            raise e 
