@@ -17,6 +17,8 @@ from jose import jwt, JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 
+
+
 import json
 
 BACKEND_URI = settings.BACKEND_URI
@@ -66,9 +68,11 @@ async def social_signup(request: Request, user_data: SocialUserCreate, db: Async
 async def signup(user: UserCreate, db: AsyncSession = Depends(get_db_session)):
     return await create_user(db, user)
 
+
 @router.post("/login")
 async def login(user: LoginInfo, response: Response, db: AsyncSession = Depends(get_db_session)):
     auth_user = await authenticate_user(db, user.email, user.password)
+
     
     if not auth_user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -109,6 +113,7 @@ async def logout(response: Response):
 # 로그인 → JWT 반환
 @router.post("/jwtlogin")
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession  = Depends(get_db_session)):
+
     auth_user = await authenticate_user(db, form_data.username, form_data.password )
     
     if not auth_user:
@@ -222,9 +227,9 @@ async def read_projects_for_user(user_id: str, db: AsyncSession = Depends(get_db
     # print("엔드포인트 호출됨")
     projects = await get_projects_for_user(db, user_id)
     # print("[프로젝트 목록 반환] user_id:", user_id, "projects:", projects)
-    # 변환: 튜플 리스트 → 딕셔너리 리스트
+    # 변환: 튜플 리스트 → 딕셔너리 리스트 (project_id 추가)
     projects_list = [
-        {"userName": p[0], "projectName": p[1]} for p in projects
+        {"userName": p[0], "projectName": p[1], "projectId": str(p[2])} for p in projects
     ]
     return {"projects": projects_list}
 

@@ -7,9 +7,9 @@ from langchain.agents import Tool, AgentType, initialize_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, SystemMessage
 from app.core.config import settings
-import psycopg2
-from contextlib import contextmanager
-import boto3
+import aiopg
+from contextlib import asynccontextmanager
+import aioboto3
 from botocore.exceptions import ClientError
 
 
@@ -27,9 +27,8 @@ AWS_SECRET_KEY = os.getenv("AWS_SECRET_KEY")
 AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME")
 AWS_REGION = os.getenv("AWS_REGION", "ap-southeast-2")
 
-# S3 클라이언트 초기화
-s3_client = boto3.client(
-    's3',
+# S3 클라이언트 설정 (비동기)
+session = aioboto3.Session(
     aws_access_key_id=AWS_ACCESS_KEY,
     aws_secret_access_key=AWS_SECRET_KEY,
     region_name=AWS_REGION
@@ -45,15 +44,13 @@ DB_CONFIG = {
 }
 
 CONNECTION_STRING = f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
-# CONNECTION_STRING = settings.CONNECTION_STRING
-@contextmanager
-def get_db_connection():
+
+@asynccontextmanager
+async def get_db_connection():
     """데이터베이스 연결을 관리하는 컨텍스트 매니저"""
-    conn = psycopg2.connect(**DB_CONFIG)
-    try:
-        yield conn
-    finally:
-        conn.close()
+    async with aiopg.create_pool(**DB_CONFIG) as pool:
+        async with pool.acquire() as conn:
+            yield conn
 
 # 1. 임베딩 모델 초기화
 embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/distiluse-base-multilingual-cased-v2")
@@ -67,18 +64,18 @@ vectorstore = PGVector(
     distance_strategy="cosine",  # 유사도 계산 방식
 )
 
-retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 3, "score_threshold": 0.1}) # k=5로 변경
+retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 3, "score_threshold": 0.1})
 
 # 3. 문서 추천 툴 함수 정의 (직접 SQL 사용)
-def direct_vector_search(query_text: str, k: int = 3):
+async def direct_vector_search(query_text: str, k: int = 3):
     """직접 SQL로 벡터 유사도 검색"""
     try:
         # 쿼리 벡터화
         query_embedding = embedding_model.embed_query(query_text)
         
         # DB 연결 및 검색
-        with get_db_connection() as conn:
-            with conn.cursor() as cursor:
+        async with get_db_connection() as conn:
+            async with conn.cursor() as cursor:
                 # 벡터 유사도 검색 쿼리 (사용자 정보 포함)
                 sql = """
                 SELECT 
@@ -93,8 +90,8 @@ def direct_vector_search(query_text: str, k: int = 3):
                 LIMIT %s
                 """
                 
-                cursor.execute(sql, (query_embedding, query_embedding, k))
-                results = cursor.fetchall()
+                await cursor.execute(sql, (query_embedding, query_embedding, k))
+                results = await cursor.fetchall()
 
         # 결과 포맷팅
         documents = []
@@ -114,52 +111,40 @@ def direct_vector_search(query_text: str, k: int = 3):
         print(f"직접 벡터 검색 오류: {e}")
         return []
 
-def get_document_download_link(s3_key: str) -> str:
+async def get_document_download_link(s3_key: str) -> str:
     """S3에서 문서의 프리사인드 URL을 생성합니다."""
     try:
         if not s3_key:
             return "문서의 경로 정보가 없습니다."
             
         # 프리사인드 URL 생성 (1시간 유효)
-        url = s3_client.generate_presigned_url(
-            'get_object',
-            Params={
-                'Bucket': AWS_BUCKET_NAME,
-                'Key': s3_key
-            },
-            ExpiresIn=3600  # 1시간
-        )
+        async with session.client('s3') as s3:
+            url = await s3.generate_presigned_url(
+                'get_object',
+                Params={
+                    'Bucket': AWS_BUCKET_NAME,
+                    'Key': s3_key
+                },
+                ExpiresIn=3600  # 1시간
+            )
         return f"{url}"
     except ClientError as e:
         return f"다운로드 링크 생성 실패: {str(e)}"
     except Exception as e:
         return f"예상치 못한 오류 발생: {str(e)}"
 
-def recommend_docs_from_role(role_text: str) -> str:
+async def recommend_docs_from_role(role_text: str) -> str:
     try:
         # 툴 오용 방지: 파일명으로 검색하는 경우 차단
         if role_text.endswith(".hwp") or role_text.endswith(".docx"):
             return f"'{role_text}'는 파일명처럼 보입니다. 역할이나 업무 내용으로 입력해주세요."
 
         print(f"DEBUG: direct search for '{role_text}'")
-        docs = direct_vector_search(role_text, k=3)
+        docs = await direct_vector_search(role_text, k=3)
         print(f"DEBUG: Found {len(docs)} documents")
         
         if not docs:
             return "추천할 문서를 찾지 못했습니다."
-            
-        # result = ""
-        # for i, doc in enumerate(docs, 1):
-        #     doc_id = doc['interdocs_id']
-        #     title = doc['interdocs_filename']
-        #     similarity = doc['similarity_score']
-        #     path = doc['interdocs_path']
-        #     snippet = doc['content'][:200].strip().replace("\n", " ")
-            
-        #     # 다운로드 링크 생성
-        #     download_link = get_document_download_link(path)
-            
-        #     result += f"{i}. 문서 ID: {doc_id}\n제목: {title}\n유사도: {similarity:.3f}\n내용 미리보기: {snippet}\n{download_link}\n\n"
         
         result_docs = []
         for i, doc in enumerate(docs, 1):
@@ -170,7 +155,7 @@ def recommend_docs_from_role(role_text: str) -> str:
             snippet = doc['content'][:200].strip().replace("\n", " ")
             
             # 다운로드 링크 생성
-            download_link = get_document_download_link(path)
+            download_link = await get_document_download_link(path)
             
             result_docs.append({
                 "id": doc_id,
@@ -182,9 +167,6 @@ def recommend_docs_from_role(role_text: str) -> str:
             
         return result_docs
             
-            
-        # return result
-        
     except Exception as e:
         return f"문서 추천 중 오류 발생: {e}"
 
@@ -206,7 +188,6 @@ tools = [
 ]
 
 # 5. LLM 및 에이전트 초기화
-# 에이전트에게 한국어 사용을 명시적으로 지시하는 프롬프트 추가
 llm = ChatOpenAI(openai_api_key=openai_api_key, temperature=0, model="gpt-3.5-turbo")
 
 # 에이전트 프롬프트 구성
@@ -230,21 +211,22 @@ agent = initialize_agent(
     llm,
     agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
     verbose=True,
-    handle_parsing_errors=True, # 파싱 오류 처리
+    handle_parsing_errors=True,
     agent_kwargs={
-        "prompt": agent_prompt, # 정의한 프롬프트 사용
+        "prompt": agent_prompt,
     }
 )
 
 # 6. 실행 함수 정의
-def run_doc_recommendation(query: str) -> str:
+async def run_doc_recommendation(query: str) -> str:
     print(f"\n[입력된 역할 분담 내용]\n{query}\n")
-    response = agent.invoke({"input": query})
+    response = await agent.ainvoke({"input": query})
     print(f"\n[에이전트 응답]\n{response}")
     return response
 
 # 7. 테스트 실행
 if __name__ == "__main__":
+    import asyncio
     print("\n========== 기존 테스트 실행 ==========")
     test_query = "회의에서 김대리는 회의록을 작성하기로 했다"
-    run_doc_recommendation(test_query)
+    asyncio.run(run_doc_recommendation(test_query))

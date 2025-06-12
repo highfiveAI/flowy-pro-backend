@@ -17,6 +17,7 @@ from app.models.signup_log import SignupLog
 from app.models.summary_log import SummaryLog
 from app.models.sysrole import Sysrole
 from app.models.task_assign_log import TaskAssignLog
+from app.models.prompt_log import PromptLog
 # 다른 모델들...
 
-__all__ = ["CompanyPosition", "FlowyUser", "Interdoc", "Admin", "Company", "Company", "DraftLog", "Feedback", "FeedbackType", "MeetingUser", "Meeting", "ProfileImg", "ProjectUser", "Project", "Role", "SignupLog", "SummaryLog", "Sysrole", "TaskAssignLog"]
+__all__ = ["CompanyPosition", "FlowyUser", "Interdoc", "Admin", "Company", "Company", "DraftLog", "Feedback", "FeedbackType", "MeetingUser", "Meeting", "ProfileImg", "ProjectUser", "Project", "Role", "SignupLog", "SummaryLog", "Sysrole", "TaskAssignLog", "PromptLog"]
