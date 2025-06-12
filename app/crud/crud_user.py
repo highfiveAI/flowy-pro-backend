@@ -14,8 +14,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 async def create_user(db: AsyncSession, user: UserCreate):
     hashed_password = (
-        pwd_context.hash(user.password) if user.password
-        else pwd_context.hash("social_dummy_password")
+        pwd_context.hash(user.password)
     )
 
     db_user = FlowyUser(
@@ -39,7 +38,7 @@ async def create_user(db: AsyncSession, user: UserCreate):
     log = SignupLog(
         signup_request_user_id=db_user.user_id,
         signup_update_user_id=db_user.user_id,
-        signup_completed_status="pending"
+        signup_completed_status="Pending"
     )
     db.add(log)
 
@@ -47,8 +46,8 @@ async def create_user(db: AsyncSession, user: UserCreate):
     await db.refresh(db_user)
     return db_user
 
-async def authenticate_user(db: AsyncSession, email: str, password: str):
-    stmt = select(FlowyUser).where(FlowyUser.user_email == email)
+async def authenticate_user(db: AsyncSession, login_id: str, password: str):
+    stmt = select(FlowyUser).where(FlowyUser.user_login_id == login_id)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 

@@ -19,6 +19,7 @@ from uuid import UUID
 
 import json
 
+# 환경변수
 BACKEND_URI = settings.BACKEND_URI
 FRONTEND_URI = settings.FRONTEND_URI
 SECRET_KEY = settings.SECRET_KEY 
@@ -28,7 +29,7 @@ ALGORITHM = "HS256"
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/users/jwtlogin")
-
+# 소셜 회원가입
 @router.post("/social_signup")
 async def social_signup(request: Request, user_data: SocialUserCreate, db: AsyncSession = Depends(get_db_session)):
     token = request.cookies.get("signup_token")
@@ -61,22 +62,24 @@ async def social_signup(request: Request, user_data: SocialUserCreate, db: Async
     )
 
     return await create_user(db, new_user)
-
+# 회원가입
 @router.post("/signup")
 async def signup(user: UserCreate, db: AsyncSession = Depends(get_db_session)):
     return await create_user(db, user)
 
+# 로그인
 @router.post("/login")
 async def login(user: LoginInfo, response: Response, db: AsyncSession = Depends(get_db_session)):
-    auth_user = await authenticate_user(db, user.email, user.password)
+    auth_user = await authenticate_user(db, user.login_id, user.password)
     
     if not auth_user:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=401, detail="Invalid login_id or password")
 
     payload = TokenPayload(
         id=str(auth_user.user_id),
         name=auth_user.user_name,
-        email=auth_user.user_email
+        email=auth_user.user_email,
+        login_id=auth_user.user_login_id
     )
 
     access_token = await create_access_token(
@@ -101,6 +104,7 @@ async def login(user: LoginInfo, response: Response, db: AsyncSession = Depends(
 
     return response
 
+# 로그아웃
 @router.post("/logout")
 async def logout(response: Response):
     response.delete_cookie(key="access_token", httponly=True, secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE)
@@ -126,6 +130,7 @@ async def read_me(token: str = Depends(oauth2_scheme)):
     username = await verify_token(token)
     return {"username": username}
 
+# 유저 체크
 @router.get("/auth/check")
 async def auth_check(request: Request):
     token = request.cookies.get("access_token")
@@ -141,12 +146,13 @@ async def auth_check(request: Request):
 
     return JSONResponse(content={"authenticated": True, "user": user_dict})
 
-
+#  구글 로그인
 @router.get("/auth/google/login")
 async def google_login(request: Request):
     redirect_uri = BACKEND_URI + "/api/v1/users/auth/google/callback"
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
+# 구글 로그인 콜백
 @router.get("/auth/google/callback")
 async def google_callback(request: Request, response: Response, db: AsyncSession = Depends(get_db_session)):
     # 1) 구글에서 온 authorization code를 받아서 access token 요청
@@ -165,10 +171,6 @@ async def google_callback(request: Request, response: Response, db: AsyncSession
     # 예: user_info['email'], user_info['name'] 등
     email = user_info.get("email")
     name = user_info.get("name")
-
-    # request.session['email'] = email
-    # print(request.session.get('email'))
-    # print(name)
 
     auth_user = await only_authenticate_email(db, email)
 
@@ -194,7 +196,8 @@ async def google_callback(request: Request, response: Response, db: AsyncSession
     payload = TokenPayload(
         id=str(auth_user.user_id),
         name=auth_user.user_name,
-        email=auth_user.user_email
+        email=auth_user.user_email,
+        login_id=auth_user.user_login_id
     )
 
     access_token = await create_access_token(
@@ -217,6 +220,7 @@ async def google_callback(request: Request, response: Response, db: AsyncSession
     # 여기서는 예시로 성공 페이지나 프론트엔드 주소로 리다이렉트
     return redirect_response  # 또는 프론트엔드 URL
 
+# 프로젝트 유저들 get
 @router.get("/projects/{user_id}")
 async def read_projects_for_user(user_id: str, db: AsyncSession = Depends(get_db_session)):
     # print("엔드포인트 호출됨")
@@ -228,12 +232,14 @@ async def read_projects_for_user(user_id: str, db: AsyncSession = Depends(get_db
     ]
     return {"projects": projects_list}
 
+# 회원가입시 회사, 직급 등 메타데이터 get
 @router.get("/signup/meta")
 async def read_company_names(db: AsyncSession = Depends(get_db_session)):
     data = await get_signup_meta(db)
 
     return data
 
+# 마이페이지 유저의 정보 get
 @router.get("/one")
 async def read_one_user(request: Request, db: AsyncSession = Depends(get_db_session)):
 
@@ -252,6 +258,7 @@ async def read_one_user(request: Request, db: AsyncSession = Depends(get_db_sess
 
     return user_info;
 
+# 마이페이지 유저 정보 업데이트 라우터
 @router.put("/update")
 async def update_user(
     request: Request,
@@ -272,3 +279,26 @@ async def update_user(
         "message": "User updated successfully",
         "user": user_data
     }
+
+# 마이페이지 유저 식별 라우터
+@router.post("/mypage/check")
+async def mypage_check(
+    request: Request,
+    userInfo: LoginInfo,
+    db: AsyncSession = Depends(get_db_session)
+ ):
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="인증 실패")
+
+    try:
+        user: TokenPayload = await verify_access_token(token)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="인증 실패")
+
+    auth_user = await authenticate_user(db, userInfo.login_id, userInfo.password)
+    
+    if not auth_user:
+        raise HTTPException(status_code=401, detail="Invalid login_id or password")
+
+    return True
