@@ -5,6 +5,7 @@ class TokenPayload(BaseModel):
     id: str
     name: str
     email: str
+    login_id: str
 
 # 응답용 스키마
 class User(BaseModel):
@@ -49,7 +50,7 @@ class SocialUserCreate(BaseModel):
     login_type: str
 
 class LoginInfo(BaseModel):
-    email: EmailStr
+    login_id: str
     password: str
 
     class Config:

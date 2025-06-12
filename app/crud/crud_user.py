@@ -15,8 +15,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 async def create_user(db: AsyncSession, user: UserCreate):
     hashed_password = (
-        pwd_context.hash(user.password) if user.password
-        else pwd_context.hash("social_dummy_password")
+        pwd_context.hash(user.password)
     )
 
 
@@ -49,9 +48,9 @@ async def create_user(db: AsyncSession, user: UserCreate):
     await db.refresh(db_user)
     return db_user
 
+async def authenticate_user(db: AsyncSession, login_id: str, password: str):
+    stmt = select(FlowyUser).where(FlowyUser.user_login_id == login_id)
 
-async def authenticate_user(db: AsyncSession, email: str, password: str):
-    stmt = select(FlowyUser).where(FlowyUser.user_email == email)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
