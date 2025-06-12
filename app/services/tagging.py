@@ -148,7 +148,7 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
         print(f"[tagging.py] insert_task_assign_log 호출: assigned_roles={assigned_roles}", flush=True)
         await insert_task_assign_log(db, assigned_roles or {}, meeting_id)
         print(f"[tagging.py] insert_feedback_log 호출: feedback_result={feedback_result}", flush=True)
-        await insert_feedback_log(db, feedback_result["feedback"] if isinstance(feedback_result, dict) and "feedback" in feedback_result else feedback_result, meeting_id)
+        # await insert_feedback_log(db, feedback_result["feedback"] if isinstance(feedback_result, dict) and "feedback" in feedback_result else feedback_result, meeting_id)
 
     return {
         "project_name": project_name,

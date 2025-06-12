@@ -11,9 +11,10 @@ from pydantic import BaseModel, UUID4
 from datetime import datetime
 from sqlalchemy.orm import Session
 from app.api.deps import get_db
-from app.crud.crud_meeting import insert_meeting, get_project_users
+from app.crud.crud_meeting import insert_meeting, get_project_users, insert_meeting_user
 from app.models.project_user import ProjectUser
 from app.models.flowy_user import FlowyUser
+from app.models.role import Role
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -92,7 +93,10 @@ async def meeting_upload_api(
     meeting_title: str = Form(...),
     meeting_agenda: str = Form(...),
     meeting_date: str = Form(...),  # 'YYYY-MM-DD HH:mm:ss' 형태
-    db: Session = Depends(get_db)
+    attendees_name: List[str] = Form(...),
+    attendees_email: List[str] = Form(...),
+    attendees_role: List[str] = Form(...),
+    db: AsyncSession = Depends(get_db)
 ):
     # 1. 파일 저장
     save_dir = "app/temp_uploads"
@@ -104,7 +108,7 @@ async def meeting_upload_api(
     # 2. meeting_date를 datetime으로 변환
     meeting_date_obj = datetime.strptime(meeting_date, "%Y-%m-%d %H:%M:%S")
 
-    # 3. DB 저장
+    # 3. 회의 생성
     meeting = await insert_meeting(
         db=db,
         project_id=project_id,
@@ -113,6 +117,30 @@ async def meeting_upload_api(
         meeting_date=meeting_date_obj,
         meeting_audio_path=file_location
     )
+
+    # 4. 참석자별 user_id, role_id 찾기 및 저장
+    for name, email, role_name in zip(attendees_name, attendees_email, attendees_role):
+        user = await db.execute(
+            select(FlowyUser).where(FlowyUser.user_name == name, FlowyUser.user_email == email)
+        )
+        user_obj = user.scalar_one_or_none()
+        if not user_obj:
+            continue
+
+        role = await db.execute(
+            select(Role).where(Role.role_name == role_name)
+        )
+        role_obj = role.scalar_one_or_none()
+        if not role_obj:
+            continue
+
+        await insert_meeting_user(
+            db=db,
+            meeting_id=meeting.meeting_id,
+            user_id=user_obj.user_id,
+            role_id=role_obj.role_id
+        )
+
     return {"meeting_id": meeting.meeting_id, "meeting_audio_path": file_location}
 
 @router.get("/project-users/{project_id}")
@@ -202,4 +230,3 @@ async def analyze_meeting_api(
         "meeting_id": meeting_id
     }
 
-    
