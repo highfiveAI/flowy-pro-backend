@@ -120,7 +120,7 @@ async def get_all_documents(
     - **skip**: 건너뛸 문서 수
     - **limit**: 조회할 문서 수
     """
-    return get_documents(db, skip, limit) # db 객체 전달
+    return await get_documents(db, skip, limit) # db 객체 전달
 
 @router.get("/{doc_id}", response_model=DocumentResponse)
 async def get_single_document(
