@@ -50,7 +50,7 @@ async def create_user(db: AsyncSession, user: UserCreate):
     return db_user
 
 
-  async def authenticate_user(db: AsyncSession, email: str, password: str):
+async def authenticate_user(db: AsyncSession, email: str, password: str):
     stmt = select(FlowyUser).where(FlowyUser.user_email == email)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
