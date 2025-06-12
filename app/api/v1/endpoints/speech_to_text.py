@@ -46,11 +46,10 @@ async def stt_api(
     attendees_name: List[str] = Form(...),
     attendees_email: List[str] = Form(...),
     attendees_role: List[str] = Form(...),
-    project_name: str = Form(...),  # 추가
+    project_name: str = Form(...),
     db: Session = Depends(get_db)
 ):
     print("=== stt_api called ===", flush=True)
-    # 콤마로 구분된 입력값도 분리해서 여러 명으로 처리
     def split_items(items):
         result = []
         for item in items:
@@ -78,40 +77,12 @@ async def stt_api(
     result = stt_from_file(temp_path)
     os.remove(temp_path)
     print("subject:", subject, "chunks in result:", "chunks" in result, flush=True)
-    tag_result = None
-    if subject and "chunks" in result:
-        print("calling tag_chunks...", flush=True)
-        tag_result = await tag_chunks_async(project_name, subject, result["chunks"], attendees_list, agenda, meeting_date, db)
-        # print(f"결과물 : {tag_result.get('all_sentences')}")
-        # all_txt_result = " ".join(tag_result.get("all_sentences"))
-        # search_result = super_agent_for_meeting(all_txt_result)
-        # urls = re.findall(r'https?://\S+', search_result)
-        urls = [
-            "https://example.com",
-            "https://example.org",
-            "https://testsite.com/page1",
-            "https://mywebsite.net/about",
-            "https://service.io/api/data",
-            "https://news.example.com/article123",
-            "https://blog.example.org/post456",
-            "https://shop.example.net/product789",
-            "https://app.example.io/dashboard",
-            "https://static.example.com/assets/img.png"
-        ]
-        # print(f"서칭 결과물 : {search_result}")
-        
-
-
-    else:
-        print("tag_chunks 조건 불충분", flush=True)
 
     return {
-        **result, 
-        "tagging": tag_result, 
+        **result,
         "attendees": attendees_list,
         "agenda": agenda,
-        "meeting_date": meeting_date,
-        "search_result": urls
+        "meeting_date": meeting_date
     }
 
 @router.post("/meeting-upload/")
@@ -168,7 +139,58 @@ async def get_project_users(project_id: str, db: Session = Depends(get_db)):
                 "user_jobname": flowy_user.user_jobname
             })
     
-    print("================================")
+    # print("================================")
     return {"users": users}
+
+@router.post("/analyze-meeting/")
+async def analyze_meeting_api(
+    meeting_id: str = Form(...),
+    project_name: str = Form(...),
+    subject: str = Form(...),
+    chunks: str = Form(...),  # JSON 문자열로 전달받음
+    attendees_list: str = Form(...),  # JSON 문자열로 전달받음
+    agenda: str = Form(None),
+    meeting_date: str = Form(None),
+    db: Session = Depends(get_db)
+):
+    import json
+    import re
+    # chunks, attendees_list는 JSON 문자열로 받으므로 파싱
+    parsed_chunks = json.loads(chunks)
+    parsed_attendees = json.loads(attendees_list)
+    # 분석 및 역할분담 로그 저장
+    tag_result = await tag_chunks_async(
+        project_name=project_name,
+        subject=subject,
+        chunks=parsed_chunks,
+        attendees_list=parsed_attendees,
+        agenda=agenda,
+        meeting_date=meeting_date,
+        db=db,
+        meeting_id=meeting_id
+    )
+    # 분석 후처리: 추천문서 등
+    # all_txt_result = " ".join(tag_result.get("all_sentences") or [])
+    # search_result = super_agent_for_meeting(all_txt_result)
+    # urls = re.findall(r'https?://\S+', search_result)
+    urls = [
+        "https://example.com",
+        "https://example.org",
+        "https://testsite.com/page1",
+        "https://mywebsite.net/about",
+        "https://service.io/api/data",
+        "https://news.example.com/article123",
+        "https://blog.example.org/post456",
+        "https://shop.example.net/product789",
+        "https://app.example.io/dashboard",
+        "https://static.example.com/assets/img.png"
+    ]
+
+    # print(f"서칭 결과물 : {search_result}")
+    return {
+        "tagging": tag_result,
+        "search_result": urls,
+        "meeting_id": meeting_id
+    }
 
     
