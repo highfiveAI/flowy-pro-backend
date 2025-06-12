@@ -22,7 +22,6 @@ class Attendee(BaseModel):
     email: str
     role: str
 
-
 def parse_attendees(
     attendees: List[str] = Form(...)
 ):
@@ -77,12 +76,13 @@ async def stt_api(
     result = stt_from_file(temp_path)
     os.remove(temp_path)
     print("subject:", subject, "chunks in result:", "chunks" in result, flush=True)
-
     return {
         **result,
         "attendees": attendees_list,
         "agenda": agenda,
-        "meeting_date": meeting_date
+        "meeting_date": meeting_date,
+        "search_result": urls
+
     }
 
 @router.post("/meeting-upload/")
