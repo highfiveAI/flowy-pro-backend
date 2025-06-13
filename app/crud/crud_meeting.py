@@ -16,6 +16,10 @@ async def insert_meeting_user(db: AsyncSession, meeting_id: str, user_id: str, r
         role_id=role_id
     )
     db.add(meeting_participant)
+    await db.commit()
+    await db.refresh(meeting_participant)
+    return meeting_participant
+
 
 # meeting 저장 함수
 async def insert_meeting(
@@ -42,14 +46,14 @@ async def insert_meeting(
 
 # summary_log 저장 함수
 async def insert_summary_log(db: AsyncSession, summary_contents: dict, meeting_id: str):
-    print(f"insert_summary_log called! summary_contents={summary_contents}", flush=True)
-    print(f"summary_contents type: {type(summary_contents)}", flush=True)
-    print(f"summary_contents keys: {summary_contents.keys() if isinstance(summary_contents, dict) else 'not a dict'}", flush=True)
+    # print(f"insert_summary_log called! summary_contents={summary_contents}", flush=True)
+    # print(f"summary_contents type: {type(summary_contents)}", flush=True)
+    # print(f"summary_contents keys: {summary_contents.keys() if isinstance(summary_contents, dict) else 'not a dict'}", flush=True)
     from app.models import SummaryLog
     
     # agent_output 직접 추출
     summary_agent_output = summary_contents.get("agent_output", "")
-    print(f"extracted summary_agent_output={summary_agent_output}", flush=True)
+    # print(f"extracted summary_agent_output={summary_agent_output}", flush=True)
     
     summary_log = SummaryLog(
         summary_log_id=str(uuid4()),
@@ -64,16 +68,16 @@ async def insert_summary_log(db: AsyncSession, summary_contents: dict, meeting_i
 
 # 역할분담 로그 저장 함수
 async def insert_task_assign_log(db: AsyncSession, assigned_roles: dict, meeting_id: str):
-    print(f"insert_task_assign_log called! assigned_roles={assigned_roles}", flush=True)
-    print(f"assigned_roles type: {type(assigned_roles)}", flush=True)
-    print(f"assigned_roles keys: {assigned_roles.keys() if isinstance(assigned_roles, dict) else 'not a dict'}", flush=True)
+    # print(f"insert_task_assign_log called! assigned_roles={assigned_roles}", flush=True)
+    # print(f"assigned_roles type: {type(assigned_roles)}", flush=True)
+    # print(f"assigned_roles keys: {assigned_roles.keys() if isinstance(assigned_roles, dict) else 'not a dict'}", flush=True)
     from app.models import TaskAssignLog
     
     # assigned_roles.assigned_roles.assigned_todos 추출
     assigned_roles_data = assigned_roles.get("assigned_roles", {})
-    print(f"assigned_roles_data: {assigned_roles_data}", flush=True)
+    # print(f"assigned_roles_data: {assigned_roles_data}", flush=True)
     assigned_todos = assigned_roles_data.get("assigned_todos", [])
-    print(f"extracted assigned_todos={assigned_todos}", flush=True)
+    # print(f"extracted assigned_todos={assigned_todos}", flush=True)
     
     task_assign_log = TaskAssignLog(
         task_assign_log_id=str(uuid4()),
@@ -94,33 +98,24 @@ async def get_feedback_type_map(db: AsyncSession):
     return {row.feedbacktype_name: row.feedbacktype_id for row in rows}
 
 # 피드백 저장 함수
-async def insert_feedback_log(db: AsyncSession, feedback_detail: dict, feedbacktype_id: str = None):
+async def insert_feedback_log(db: AsyncSession, feedback_detail: dict, feedbacktype_id: str, meeting_id: str):
+    print(f"insert_feedback_log called! feedback_detail={feedback_detail}", flush=True)
+    print(f"feedback_detail type: {type(feedback_detail)}", flush=True)
+    print(f"feedback_detail keys: {feedback_detail.keys() if isinstance(feedback_detail, dict) else 'not a dict'}", flush=True)
     from app.models import Feedback
     feedback = Feedback(
         feedback_id=str(uuid4()),
         feedbacktype_id=feedbacktype_id,
         feedback_detail=feedback_detail,
-        feedback_created_date=datetime.now()
+        feedback_created_date=datetime.now(),
+        meeting_id=meeting_id
     )
     db.add(feedback)
     await db.commit()
     await db.refresh(feedback)
     return feedback 
 
-
-# 모든 피드백 로그 저장 함수
-async def insert_all_feedback_logs(db: AsyncSession, feedback_dict: dict, meeting_id: str):
-    feedback_type_map = await get_feedback_type_map(db)
-    for key, value in feedback_dict.items():
-        feedbacktype_id = feedback_type_map.get(key)
-        if feedbacktype_id:
-            await insert_feedback_log(
-                db=db,
-                feedback_detail={key: value},
-                feedbacktype_id=feedbacktype_id
-            )
-
-
+# 프로젝트 사용자 목록 불러오기
 async def get_project_users(db: AsyncSession, project_id: str) -> List[Dict]:
     stmt = select(
         FlowyUser.user_id,
