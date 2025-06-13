@@ -10,7 +10,7 @@ class PromptLog(Base):
 
     prompt_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     prompt_meeting_id = Column(UUID(as_uuid=True), ForeignKey('meeting.meeting_id'), nullable=False)
-    agent_type = Column(Enum('search', 'summary', 'feedback', 'role', name='agent_type_enum'), nullable=False)
+    agent_type = Column(Enum('search', 'summary', 'docs', name='agent_type_enum'), nullable=False)
     prompt_output = Column(Text, nullable=False)
     prompt_input_date = Column(TIMESTAMP(timezone=True), nullable=False)
     prompt_output_date = Column(TIMESTAMP(timezone=True), nullable=False)
