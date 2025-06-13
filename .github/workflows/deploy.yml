@@ -43,6 +43,10 @@ jobs:
         echo "POSTGRES_HOST=${{ secrets.POSTGRES_HOST }}" >> .env
         echo "COOKIE_SECURE=${{ secrets.COOKIE_SECURE }}" >> .env
         echo "COOKIE_SAMESITE=${{ secrets.COOKIE_SAMESITE }}" >> .env
+        echo "AWS_ACCESS_KEY=${{ secrets.AWS_ACCESS_KEY }}" >> .env
+        echo "AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}" >> .env
+        echo "AWS_BUCKET_NAME=${{ secrets.AWS_BUCKET_NAME }}" >> .env
+        echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> .env
 
     - name: Copy docker-compose.yml to EC2
       uses: appleboy/scp-action@v0.1.4
