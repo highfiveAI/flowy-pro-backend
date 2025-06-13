@@ -8,7 +8,7 @@ from app.services.lang_feedback import feedback_agent
 from app.services.lang_role import assign_roles
 from app.services.lang_todo import extract_todos
 from typing import List, Dict, Any
-from app.crud.crud_meeting import insert_summary_log, insert_task_assign_log, insert_feedback_log
+from app.crud.crud_meeting import insert_summary_log, insert_task_assign_log, insert_feedback_log, get_feedback_type_map
 from sqlalchemy.orm import Session
 
 
@@ -143,12 +143,21 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
     
     # DB 저장 (db가 있을 때만)
     if db is not None:
-        print(f"[tagging.py] insert_summary_log 호출: summary_result={summary_result}", flush=True)
+        # print(f"[tagging.py] insert_summary_log 호출: summary_result={summary_result}", flush=True)
         await insert_summary_log(db, summary_result["summary"] if isinstance(summary_result, dict) and "summary" in summary_result else summary_result, meeting_id)
-        print(f"[tagging.py] insert_task_assign_log 호출: assigned_roles={assigned_roles}", flush=True)
+        # print(f"[tagging.py] insert_task_assign_log 호출: assigned_roles={assigned_roles}", flush=True)
         await insert_task_assign_log(db, assigned_roles or {}, meeting_id)
-        print(f"[tagging.py] insert_feedback_log 호출: feedback_result={feedback_result}", flush=True)
-        await insert_feedback_log(db, feedback_result["feedback"] if isinstance(feedback_result, dict) and "feedback" in feedback_result else feedback_result, meeting_id)
+        # 피드백 유형 매핑 및 저장
+        feedback_type_map = await get_feedback_type_map(db)
+        if isinstance(feedback_result, dict):
+            for feedbacktype_name, feedback_detail in feedback_result.items():
+                feedbacktype_id = feedback_type_map.get(feedbacktype_name, '')
+                if feedbacktype_id:
+                    await insert_feedback_log(db, feedback_detail, feedbacktype_id, meeting_id)
+                else:
+                    print(f"Unknown feedbacktype_name: {feedbacktype_name}", flush=True)
+        else:
+            await insert_feedback_log(db, feedback_result, '', meeting_id)
 
     return {
         "project_name": project_name,

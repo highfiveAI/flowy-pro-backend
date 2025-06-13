@@ -147,7 +147,7 @@ async def extract_text_from_file(file: UploadFile) -> str:
         response = await openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "주어진 문서의 전체적인 구조를 파악하여, 1~2문장 요약을 작성해주세요. 예를 들어, '목차, 목표, 일정, 예산 등으로 구성된 프로젝트 기획안'과 같이, 문서의 구성 요소를 중심으로 문서 종류와 연결되는 자연스러운 문장으로 만들어 주세요. 문서의 구체적 내용보다는 형식적·조직적 구성을 중심으로 정리해 주세요."},
+                {"role": "system", "content": "주어진 문서의 전체적인 구조를 파악하여, 1~2문장 요약을 작성해줘. 예를 들어, '목차, 목표, 일정, 예산 등으로 구성된 프로젝트 기획안'과 같이, 문서의 구성 요소를 중심으로 문서 종류와 연결되는 자연스러운 문장으로 만들어 줘. 문서의 구체적 내용보다는 형식적·조직적 구성을 중심으로 정리해 줘. 문서 종류를 중심으로, 다른 설명 없이 요약해줘."},
                 {"role": "user", "content": content}
             ],
             max_tokens=300,
