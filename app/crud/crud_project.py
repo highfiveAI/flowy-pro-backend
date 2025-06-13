@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from app.models import Project, ProjectUser, Meeting
+from app.models import Project, ProjectUser, Meeting, MeetingUser
 from uuid import UUID
 
 async def get_project_users_with_projects_by_user_id(
