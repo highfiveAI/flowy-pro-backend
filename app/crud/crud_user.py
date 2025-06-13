@@ -102,3 +102,7 @@ async def update_user_info(user_id: str, user_update: UserUpdateRequest, session
         "user_dept_name": user.user_dept_name,
         "user_phonenum": user.user_phonenum
     }
+
+async def get_all_users(db: AsyncSession) -> list[FlowyUser]:
+    result = await db.execute(select(FlowyUser))
+    return result.scalars().all()
