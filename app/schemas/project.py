@@ -21,6 +21,9 @@ class ProjectCreate(BaseModel):
     project_status: bool
     project_users: List[ProjectUserCreate]
 
+class ProjectNameUpdate(BaseModel):
+    project_name: str
+
     class Config:
         orm_mode = True
 

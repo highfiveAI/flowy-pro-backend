@@ -3,9 +3,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.db_session import get_db_session
 from app.crud.crud_user import get_all_users
 from app.schemas.signup_info import TokenPayload
-from app.schemas.project import ProjectCreate
+from app.schemas.project import ProjectCreate, ProjectNameUpdate
 from app.services.signup_service.auth import check_access_token
-from app.crud.crud_project import get_project_users_with_projects_by_user_id, get_meetings_with_users_by_project_id, create_project, get_meeting_detail_with_project_and_users, delete_project_by_id
+from app.crud.crud_project import get_project_users_with_projects_by_user_id, get_meetings_with_users_by_project_id, create_project, get_meeting_detail_with_project_and_users, delete_project_by_id, update_project_name_by_id
 from uuid import UUID
 import traceback
 from fastapi.responses import JSONResponse
@@ -57,3 +57,14 @@ async def delete_project(project_id: UUID, db: AsyncSession = Depends(get_db_ses
     if not deleted:
         raise HTTPException(status_code=404, detail="Project not found")
     return {"message": "Project deleted successfully"}
+
+@router.put("/{project_id}")
+async def update_project_name(
+    project_id: UUID,
+    data: ProjectNameUpdate,
+    db: AsyncSession = Depends(get_db_session)
+):
+    updated = await update_project_name_by_id(db, project_id, data.project_name)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"message": "Project name updated successfully"}

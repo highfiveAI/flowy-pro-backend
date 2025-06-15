@@ -136,3 +136,21 @@ async def delete_project_by_id(db: AsyncSession, project_id: UUID) -> bool:
     await db.delete(project)
     await db.commit()
     return True  # 삭제 성공
+
+async def update_project_name_by_id(
+    db: AsyncSession,
+    project_id: UUID,
+    project_name: str
+) -> bool:
+    # 해당 project_id로 프로젝트 검색
+    stmt = select(Project).where(Project.project_id == project_id)
+    result = await db.execute(stmt)
+    project = result.scalars().first()
+
+    if not project:
+        return False  # 프로젝트가 존재하지 않음
+
+    # 프로젝트 이름 수정
+    project.project_name = project_name
+    await db.commit()
+    return True  # 수정 성공
