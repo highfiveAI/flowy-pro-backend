@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select
 from app.models import FlowyUser, SignupLog, ProjectUser, Project, Role
 from app.schemas.signup_info import UserCreate, TokenPayload
-from app.schemas.mypage import UserUpdateRequest
+from app.schemas.mypage import UserUpdateRequest, UserWithCompanyInfo
 from app.schemas.project import UserSchema, RoleSchema
 from app.core.security import verify_password
 from passlib.context import CryptContext
@@ -67,6 +67,30 @@ async def only_authenticate_email(db: AsyncSession, email: str):
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
     return user
+
+async def get_mypage_user(db: AsyncSession, email: str):
+    stmt = (
+        select(FlowyUser)
+        .options(joinedload(FlowyUser.company))
+        .where(FlowyUser.user_email == email)
+    )
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        return None
+
+    return UserWithCompanyInfo(
+        user_id=user.user_id,
+        user_name=user.user_name,
+        user_email=user.user_email,
+        user_login_id=user.user_login_id,
+        user_phonenum=user.user_phonenum,
+        user_team_name=user.user_team_name,
+        user_dept_name=user.user_dept_name,
+        company_id=user.company.company_id if user.company else None,
+        company_name=user.company.company_name if user.company else None,
+    )
 
 async def get_projects_for_user(db: AsyncSession, user_id: UUID):
     stmt = (

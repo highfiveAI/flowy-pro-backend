@@ -7,8 +7,8 @@ from datetime import timedelta
 from app.core.security import verify_password
 from app.core.config import settings
 from app.schemas.signup_info import SocialUserCreate, UserCreate, LoginInfo, TokenPayload
-from app.schemas.mypage import UserUpdateRequest
-from app.crud.crud_user import create_user, authenticate_user, only_authenticate_email, get_projects_for_user, update_user_info
+from app.schemas.mypage import UserUpdateRequest, UserWithCompanyInfo
+from app.crud.crud_user import create_user, authenticate_user, only_authenticate_email, get_projects_for_user, update_user_info, get_mypage_user
 from app.crud.crud_company import get_signup_meta
 from app.db.db_session import get_db_session
 from app.services.signup_service.auth import create_access_token, verify_token, verify_access_token
@@ -243,7 +243,7 @@ async def read_company_names(db: AsyncSession = Depends(get_db_session)):
 
 # 마이페이지 유저의 정보 get
 @router.get("/one")
-async def read_one_user(request: Request, db: AsyncSession = Depends(get_db_session)):
+async def read_one_user(request: Request, db: AsyncSession = Depends(get_db_session), response_model=UserWithCompanyInfo):
 
     token = request.cookies.get("access_token")
     if not token:
@@ -256,9 +256,10 @@ async def read_one_user(request: Request, db: AsyncSession = Depends(get_db_sess
 
     user_dict = json.loads(user.json())
     print(user_dict)
-    user_info = await only_authenticate_email(db, user.email);
-
-    return user_info;
+    user_info = await get_mypage_user(db, user.email)
+    if user_info is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user_info
 
 # 마이페이지 유저 정보 업데이트 라우터
 @router.put("/update")
