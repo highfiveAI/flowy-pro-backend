@@ -8,7 +8,7 @@ class Meeting(Base):
     __tablename__ = 'meeting'
 
     meeting_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    project_id = Column(UUID(as_uuid=True), ForeignKey('project.project_id'), nullable=False)
+    project_id = Column(UUID(as_uuid=True), ForeignKey('project.project_id', ondelete="CASCADE"), nullable=False)
     meeting_title = Column(String(150), nullable=False)
     meeting_agenda = Column(String(1000), nullable=True)
     meeting_date = Column(TIMESTAMP, nullable=False)

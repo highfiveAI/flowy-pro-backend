@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from app.core.config import settings
 from app.schemas.signup_info import TokenPayload
+from fastapi import Request, HTTPException
 
 SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = "HS256"
@@ -30,3 +31,16 @@ async def verify_access_token(token: str) -> TokenPayload:
         return TokenPayload(**payload)
     except (JWTError, ValueError):
         raise ValueError("Could not validate token")
+
+async def check_access_token(request: Request):
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="인증 실패")
+
+    try:
+        user: TokenPayload = await verify_access_token(token)
+        return user
+
+    except ValueError:
+        raise HTTPException(status_code=401, detail="인증 실패")
+    
