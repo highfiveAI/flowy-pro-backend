@@ -53,8 +53,6 @@ jobs:
         echo "MAIL_PORT=${{ secrets.MAIL_PORT }}" >> .env
         echo "MAIL_SERVER=${{ secrets.MAIL_SERVER }}" >> .env
 
-  depends_on:
-
     - name: Copy docker-compose.yml to EC2
       uses: appleboy/scp-action@v0.1.4
       with:
