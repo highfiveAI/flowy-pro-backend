@@ -1,8 +1,9 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select
-from app.models import FlowyUser, SignupLog, ProjectUser, Project
-from app.schemas.signup_info import UserCreate
-from app.schemas.mypage import UserUpdateRequest
+from app.models import FlowyUser, SignupLog, ProjectUser, Project, Role
+from app.schemas.signup_info import UserCreate, TokenPayload
+from app.schemas.mypage import UserUpdateRequest, UserWithCompanyInfo
+from app.schemas.project import UserSchema, RoleSchema
 from app.core.security import verify_password
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,6 +68,30 @@ async def only_authenticate_email(db: AsyncSession, email: str):
     user = result.scalar_one_or_none()
     return user
 
+async def get_mypage_user(db: AsyncSession, email: str):
+    stmt = (
+        select(FlowyUser)
+        .options(joinedload(FlowyUser.company))
+        .where(FlowyUser.user_email == email)
+    )
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        return None
+
+    return UserWithCompanyInfo(
+        user_id=user.user_id,
+        user_name=user.user_name,
+        user_email=user.user_email,
+        user_login_id=user.user_login_id,
+        user_phonenum=user.user_phonenum,
+        user_team_name=user.user_team_name,
+        user_dept_name=user.user_dept_name,
+        company_id=user.company.company_id if user.company else None,
+        company_name=user.company.company_name if user.company else None,
+    )
+
 async def get_projects_for_user(db: AsyncSession, user_id: UUID):
     stmt = (
         select(FlowyUser.user_name, Project.project_name, Project.project_id)
@@ -103,6 +128,37 @@ async def update_user_info(user_id: str, user_update: UserUpdateRequest, session
         "user_phonenum": user.user_phonenum
     }
 
-async def get_all_users(db: AsyncSession) -> list[FlowyUser]:
-    result = await db.execute(select(FlowyUser))
-    return result.scalars().all()
+# 회사 id, 유저, 역할
+async def get_all_users(token_user: TokenPayload, db: AsyncSession) -> list[UserSchema]:
+
+    result = await db.execute(
+        select(FlowyUser)
+        .options(joinedload(FlowyUser.company))
+        .where(FlowyUser.user_id == token_user.id)
+    )
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        raise Exception("해당 사용자가 존재하지 않습니다.")
+
+    company_id = user.user_company_id
+
+    # 2. 해당 회사의 모든 유저 조회
+    result_users = await db.execute(
+        select(FlowyUser.user_id, FlowyUser.user_name)
+        .where(FlowyUser.user_company_id == company_id)
+    )
+    users_rows = result_users.all()
+
+    result_roles = await db.execute(select(Role.role_id, Role.role_name))
+    roles_rows = result_roles.all()
+
+    users = [UserSchema(user_id=row[0], user_name=row[1]) for row in users_rows]
+    roles = [RoleSchema(role_id=row[0], role_name=row[1]) for row in roles_rows]
+
+    return {
+        "company_id": company_id,
+        "users": users,
+        "roles": roles,
+    }
+
