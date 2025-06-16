@@ -47,6 +47,13 @@ jobs:
         echo "AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}" >> .env
         echo "AWS_BUCKET_NAME=${{ secrets.AWS_BUCKET_NAME }}" >> .env
         echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> .env
+        echo "MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}" >> .env
+        echo "MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}" >> .env
+        echo "MAIL_FROM=${{ secrets.MAIL_FROM }}" >> .env
+        echo "MAIL_PORT=${{ secrets.MAIL_PORT }}" >> .env
+        echo "MAIL_SERVER=${{ secrets.MAIL_SERVER }}" >> .env
+
+    depends_on:
 
     - name: Copy docker-compose.yml to EC2
       uses: appleboy/scp-action@v0.1.4
