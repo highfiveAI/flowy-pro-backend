@@ -229,7 +229,7 @@ async def google_callback(request: Request, response: Response, db: AsyncSession
 async def read_projects_for_user(user_id: UUID, db: AsyncSession = Depends(get_db_session)):
     projects = await get_projects_for_user(db, user_id)
     projects_list = [
-        {"userName": p[0], "projectName": p[1], "projectId": str(p[2])} for p in projects
+        {"userName": p[0], "projectName": p[1], "projectId": str(p[2]), "projectCreatedDate": p[3], "projectEndDate": p[4]} for p in projects
     ]
     return {"projects": projects_list}
 

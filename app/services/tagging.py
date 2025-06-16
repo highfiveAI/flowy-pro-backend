@@ -10,7 +10,7 @@ from app.services.lang_todo import extract_todos
 from typing import List, Dict, Any
 from app.crud.crud_meeting import insert_summary_log, insert_task_assign_log, insert_feedback_log, get_feedback_type_map, insert_prompt_log
 from sqlalchemy.orm import Session
-
+from app.services.notify_email_service import send_meeting_email
 
 openai_client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -158,6 +158,26 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
                     print(f"Unknown feedbacktype_name: {feedbacktype_name}", flush=True)
         else:
             await insert_feedback_log(db, feedback_result, '', meeting_id)
+        # 모든 피드백 저장이 끝난 후 이메일 전송 (회의장에게만)
+        host = None
+        if attendees_list:
+            for person in attendees_list:
+                if person.get("is_host") == True:
+                    host = {
+                        "name": person.get("name"),
+                        "email": person.get("email"),
+                        "role": person.get("role", "host")
+                    }
+                    break
+        if host is not None:
+            meeting_info = {
+                "info_n": [host],
+                "dt": meeting_date,
+                "subj": subject
+            }
+            await send_meeting_email(meeting_info)
+        else:
+            print("회의장(Host) 정보가 없습니다.")
 
     # # 프롬프트 로그 저장용 에이전트 유형 매핑 함수 및 insert 함수
     # def get_agent_type_map():
