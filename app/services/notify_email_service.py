@@ -59,6 +59,7 @@ async def send_meeting_email(meeting_info):
         안녕하세요, {name}님 FLOWY입니다.<br><br>
         {meeting_info['dt']}에 진행된 '{meeting_info['subj']}' 회의 분석이 완료되었습니다.<br><br>
         회의의 주요 내용과 논의 결과는 회의 관리에서 보실 수 있습니다.<br><br>
+        http://localhost:5173/dashboard/{meeting_info['meeting_id']}<br><br>
         감사합니다.<br><br>
         FLOWY 드림
         """

@@ -8,7 +8,7 @@ from app.services.lang_feedback import feedback_agent
 from app.services.lang_role import assign_roles
 from app.services.lang_todo import extract_todos
 from typing import List, Dict, Any
-from app.crud.crud_meeting import insert_summary_log, insert_task_assign_log, insert_feedback_log, get_feedback_type_map, insert_prompt_log
+from app.crud.crud_meeting import insert_summary_log, insert_task_assign_log, insert_feedback_log, get_feedback_type_map
 from sqlalchemy.orm import Session
 from app.services.notify_email_service import send_meeting_email
 
@@ -173,7 +173,8 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
             meeting_info = {
                 "info_n": [host],
                 "dt": meeting_date,
-                "subj": subject
+                "subj": subject,
+                "meeting_id": meeting_id
             }
             await send_meeting_email(meeting_info)
         else:

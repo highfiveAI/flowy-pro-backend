@@ -177,7 +177,7 @@ async def insert_task_assign_log(
     new_log = TaskAssignLog(
         meeting_id=meeting_id,
         updated_task_assign_contents=updated_task_assign_contents,
-        updated_task_assign_date=now
+        updated_task_assign_date=datetime.now()
     )
     
     db.add(new_log)
