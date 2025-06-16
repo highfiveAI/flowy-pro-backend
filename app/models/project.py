@@ -17,7 +17,7 @@ class Project(Base):
     project_status = Column(BOOLEAN, nullable=False)
 
     company = relationship("Company", back_populates="projects")
-    project_users = relationship("ProjectUser", back_populates="project", cascade="all, delete-orphan",
-    passive_deletes=True)
-    meetings = relationship("Meeting", back_populates="project", cascade="all, delete-orphan",
-    passive_deletes=True)
+    project_users = relationship("ProjectUser", back_populates="project")
+    meetings = relationship("Meeting", back_populates="project")
+    calendar = relationship("Calendar", back_populates="project")
+
