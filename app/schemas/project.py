@@ -29,6 +29,10 @@ class TaskAssignLogCreate(BaseModel):
     meeting_id: UUID
     updated_task_assign_contents: Dict[str, Any]
 
+class SummaryLogCreate(BaseModel):
+    meeting_id: UUID
+    updated_summary_contents: Dict[str, List[str]]
+
     class Config:
         orm_mode = True
 

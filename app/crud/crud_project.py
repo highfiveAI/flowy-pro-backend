@@ -41,7 +41,7 @@ async def create_project(
     project_data: ProjectCreate,
     db: AsyncSession
 ):
-    now = datetime.utcnow()
+    now = datetime.now()
     # 1. 프로젝트 생성
     new_project = Project(
         project_id=uuid.uuid4(),
@@ -172,12 +172,35 @@ async def insert_task_assign_log(
     meeting_id: UUID,
     updated_task_assign_contents: dict,
 ) -> bool:
-    now = datetime.utcnow()
+    now = datetime.now()
 
     new_log = TaskAssignLog(
         meeting_id=meeting_id,
         updated_task_assign_contents=updated_task_assign_contents,
         updated_task_assign_date=now
+    )
+    
+    db.add(new_log)
+    try:
+        await db.commit()
+        return True
+    except Exception as e:
+        await db.rollback()
+        # 필요시 로그 출력 or 예외 처리
+        return False
+
+# 요약 로그 업데이트
+async def insert_summary_log(
+    db: AsyncSession,
+    meeting_id: UUID,
+    updated_summary_contents: dict,
+) -> bool:
+    now = datetime.now()
+
+    new_log = SummaryLog(
+        meeting_id=meeting_id,
+        updated_summary_contents=updated_summary_contents,
+        updated_summary_date=now
     )
     
     db.add(new_log)
