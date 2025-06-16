@@ -6,6 +6,7 @@ from app.models.meeting import Meeting  # 실제 모델 경로에 맞게 수정
 from app.models.project_user import ProjectUser
 from app.models.flowy_user import FlowyUser
 from app.models.meeting_user import MeetingUser
+from app.models.project import Project
 from typing import List, Dict, Optional
 
 #회의 참석자 저장 함수
@@ -116,7 +117,7 @@ async def insert_feedback_log(db: AsyncSession, feedback_detail: dict, feedbackt
     return feedback 
 
 # 프로젝트 사용자 목록 불러오기
-async def get_project_users(db: AsyncSession, project_id: str) -> List[Dict]:
+async def get_conference_list(db: AsyncSession, project_id: str) -> List[Dict]:
     stmt = select(
         FlowyUser.user_id,
         FlowyUser.user_name,
@@ -148,3 +149,35 @@ async def get_project_users(db: AsyncSession, project_id: str) -> List[Dict]:
         for user in users
     ]
 
+# 프롬프트 로그 저장 함수
+async def insert_prompt_log(db: AsyncSession, meeting_id: str, agent_type: str, prompt_output: str, prompt_input_date: datetime, prompt_output_date: datetime):
+    from app.models import PromptLog
+    prompt_log = PromptLog(
+        prompt_id=str(uuid4()),
+        meeting_id=meeting_id,
+        agent_type=agent_type,
+        prompt_output=prompt_output,
+        prompt_input_date=prompt_input_date,
+        prompt_output_date=prompt_output_date
+    )
+    db.add(prompt_log)
+    await db.commit()
+    await db.refresh(prompt_log)
+    return prompt_log
+
+# 프로젝트 회의 목록 조회
+async def get_project_meetings(db: AsyncSession, project_id: str):
+    stmt = (
+        select(
+            Meeting.meeting_id,
+            Meeting.meeting_title,
+            Meeting.meeting_date,
+            Meeting.meeting_agenda,
+            Project.project_name
+        )
+        .join(Project, Meeting.project_id == Project.project_id)
+        .where(Project.project_id == project_id)
+    )
+    result = await db.execute(stmt)
+    meetings = result.all()
+    return meetings

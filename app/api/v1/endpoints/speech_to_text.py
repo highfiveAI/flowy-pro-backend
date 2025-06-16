@@ -6,17 +6,18 @@ from app.services.orchestration import super_agent_for_meeting
 import json
 import os
 import re
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 from pydantic import BaseModel, UUID4
 from datetime import datetime
 from sqlalchemy.orm import Session
 from app.api.deps import get_db
-from app.crud.crud_meeting import insert_meeting, get_project_users, insert_meeting_user
+from app.crud.crud_meeting import insert_meeting, insert_meeting_user, get_project_meetings
 from app.models.project_user import ProjectUser
 from app.models.flowy_user import FlowyUser
 from app.models.role import Role
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from app.models.meeting import Meeting
 
 router = APIRouter()
 
@@ -233,6 +234,7 @@ async def analyze_meeting_api(
         ]
     else:
         all_attendees = [host_info]
+    # print(f"[DEBUG] tag_chunks_async에 넘기는 attendees_list: {all_attendees}", flush=True)
     # 분석 및 역할분담 로그 저장
     tag_result = await tag_chunks_async(
         project_name=project_name,
@@ -268,3 +270,28 @@ async def analyze_meeting_api(
         "meeting_id": meeting_id
     }
 
+# 프로젝트 회의 목록 조회
+@router.get("/conferencelist/{project_id}")
+async def get_conference_list(
+    project_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        print(f"[DEBUG] project_id: {project_id}", flush=True)
+        meetings = await get_project_meetings(db, project_id)
+        print(f"[DEBUG] meetings: {meetings}", flush=True)
+        meeting_list = [
+            {
+                "meeting_id": str(m[0]),
+                "meeting_title": m[1],
+                "meeting_date": m[2]
+            }
+            for m in meetings
+        ]
+        print(f"[DEBUG] meeting_list: {meeting_list}", flush=True)
+        return {"meetings": meeting_list}
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] 에러 발생: {e}", flush=True)
+        traceback.print_exc()
+        return {"error": str(e)}

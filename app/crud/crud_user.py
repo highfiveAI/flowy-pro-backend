@@ -94,7 +94,7 @@ async def get_mypage_user(db: AsyncSession, email: str):
 
 async def get_projects_for_user(db: AsyncSession, user_id: UUID):
     stmt = (
-        select(FlowyUser.user_name, Project.project_name, Project.project_id)
+        select(FlowyUser.user_name, Project.project_name, Project.project_id, Project.project_created_date, Project.project_end_date,ProjectUser.user_id)
         .join(ProjectUser, ProjectUser.user_id == FlowyUser.user_id)
         .join(Project, Project.project_id == ProjectUser.project_id)
         .where(FlowyUser.user_id == user_id)
