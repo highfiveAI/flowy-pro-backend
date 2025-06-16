@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Dict, Any
 from uuid import UUID
 
 class UserSchema(BaseModel):
@@ -23,6 +23,11 @@ class ProjectCreate(BaseModel):
 
 class ProjectNameUpdate(BaseModel):
     project_name: str
+
+# 역할 분배 insert
+class TaskAssignLogCreate(BaseModel):
+    meeting_id: UUID
+    updated_task_assign_contents: Dict[str, Any]
 
     class Config:
         orm_mode = True

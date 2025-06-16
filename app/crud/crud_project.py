@@ -1,7 +1,7 @@
 from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, load_only, joinedload, contains_eager
-from app.models import Project, ProjectUser, Meeting, MeetingUser, FlowyUser, SummaryLog, Feedback
+from app.models import Project, ProjectUser, Meeting, MeetingUser, FlowyUser, SummaryLog, Feedback, TaskAssignLog
 from app.schemas.project import ProjectCreate
 from sqlalchemy.sql import label
 from uuid import UUID
@@ -66,7 +66,7 @@ async def create_project(
     await db.commit()
     return {"project_id": new_project.project_id}
 
-
+# 회의 분석 결과
 async def get_meeting_detail_with_project_and_users(
     db: AsyncSession, meeting_id: UUID
 ) -> Meeting | None:
@@ -114,11 +114,22 @@ async def get_meeting_detail_with_project_and_users(
         feedback_result = await db.execute(feedback_stmt)
         feedback = feedback_result.scalars().first()
 
+        task_assign_role_stmt = (
+            select(TaskAssignLog)
+            .where(TaskAssignLog.meeting_id == meeting_id)
+            .order_by(desc(TaskAssignLog.updated_task_assign_date))
+            .limit(1)
+        )
+        task_assign_role_result = await db.execute(task_assign_role_stmt)
+        task_assign_role = task_assign_role_result.scalars().first()
+
         # meeting 객체에 직접 넣어줍니다. (필드가 없으면 수동으로 속성 추가)
         if summary_log:
             setattr(meeting, "summary_log", summary_log)
         if feedback:
             setattr(meeting, "feedback", feedback)
+        if task_assign_role:
+            setattr(meeting, "task_assign_role", task_assign_role)
 
     return meeting
 
@@ -154,3 +165,26 @@ async def update_project_name_by_id(
     project.project_name = project_name
     await db.commit()
     return True  # 수정 성공
+
+# 역할 분배 업데이트 
+async def insert_task_assign_log(
+    db: AsyncSession,
+    meeting_id: UUID,
+    updated_task_assign_contents: dict,
+) -> bool:
+    now = datetime.utcnow()
+
+    new_log = TaskAssignLog(
+        meeting_id=meeting_id,
+        updated_task_assign_contents=updated_task_assign_contents,
+        updated_task_assign_date=now
+    )
+    
+    db.add(new_log)
+    try:
+        await db.commit()
+        return True
+    except Exception as e:
+        await db.rollback()
+        # 필요시 로그 출력 or 예외 처리
+        return False
