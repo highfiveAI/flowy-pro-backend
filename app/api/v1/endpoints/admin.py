@@ -1,8 +1,10 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, status, Depends
 from typing import List
 from uuid import UUID
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.db.db_session import get_db_session
 
 from app.services.admin_service.user_crud import UserCRUD
 from app.services.admin_service.company_crud import CompanyCRUD
@@ -97,6 +99,21 @@ class PositionResponse(PositionBase):
     class Config:
         from_attributes = True
 
+# 관리자 모델
+class AdminUserResponse(BaseModel):
+    user_id: UUID
+    user_name: str
+    user_email: EmailStr 
+    user_login_id: str
+    user_phonenum: str
+    user_company_id: UUID
+    user_dept_name: str | None = None
+    user_team_name: str | None = None
+    user_position_id: UUID
+    user_jobname: str | None = None
+    user_sysrole_id: UUID
+    company_name: str | None = None
+
 
 router = APIRouter()
 
@@ -107,6 +124,11 @@ async def create_user(user: UserCreate):
     crud = UserCRUD()
     return await crud.create(user.model_dump())
 
+@router.get("/users/admin_users", response_model=List[AdminUserResponse])
+async def list_admin_users(db: AsyncSession = Depends(get_db_session)):
+    """관리자 권한을 가진 사용자 목록을 조회합니다."""
+    crud = UserCRUD()
+    return await crud.get_admin_users(db)
 
 @router.get("/users/{user_id}", response_model=UserResponse)
 async def get_user(user_id: UUID):
@@ -142,6 +164,8 @@ async def update_user_status(user_id: UUID, status_update: UserStatusUpdate):
     """사용자의 승인 상태를 변경합니다."""
     crud = UserCRUD()
     return await crud.update_user_status(user_id, status_update.status)
+
+
 
 
 # 회사 관리 API
