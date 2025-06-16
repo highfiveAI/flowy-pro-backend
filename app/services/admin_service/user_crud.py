@@ -415,4 +415,31 @@ class UserCRUD:
             raise HTTPException(
                 status_code=500,
                 detail=f"사용자 상태 변경 중 오류 발생: {str(e)}"
-            ) 
+            )
+
+    async def get_admin_users(self, db: AsyncSession) -> list[dict]:
+        admin_sysrole_id = UUID("f3d23b8c-6e7b-4f5d-a72d-8a9622f94084")
+        query = (
+            select(FlowyUser, Company.company_name)
+            .outerjoin(Company, FlowyUser.user_company_id == Company.company_id)
+            .where(FlowyUser.user_sysrole_id == admin_sysrole_id)
+        )
+        result = await db.execute(query)
+        results = result.all()
+        admin_users = []
+        for user, company_name in results:
+            admin_users.append({
+                "user_id": user.user_id,
+                "user_name": user.user_name,
+                "user_email": user.user_email,
+                "user_login_id": user.user_login_id,
+                "user_phonenum": user.user_phonenum,
+                "user_company_id": user.user_company_id,
+                "user_dept_name": user.user_dept_name,
+                "user_team_name": user.user_team_name,
+                "user_position_id": user.user_position_id,
+                "user_jobname": user.user_jobname,
+                "user_sysrole_id": user.user_sysrole_id,
+                "company_name": company_name,
+            })
+        return admin_users

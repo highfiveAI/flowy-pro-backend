@@ -17,6 +17,7 @@ colorama==0.4.6
 dataclasses-json==0.6.7
 distro==1.9.0
 fastapi==0.115.12
+fastapi_mail
 filelock==3.18.0
 frozenlist==1.6.0
 fsspec==2025.5.1
@@ -68,6 +69,7 @@ python-multipart==0.0.20
 python-jose[cryptography]
 PyYAML==6.0.2
 regex==2024.11.6
+reportlab
 requests==2.32.3
 requests-toolbelt==1.0.0
 safetensors==0.5.3

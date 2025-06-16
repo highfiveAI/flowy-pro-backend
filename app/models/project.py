@@ -19,3 +19,5 @@ class Project(Base):
     company = relationship("Company", back_populates="projects")
     project_users = relationship("ProjectUser", back_populates="project")
     meetings = relationship("Meeting", back_populates="project")
+    calendar = relationship("Calendar", back_populates="project")
+

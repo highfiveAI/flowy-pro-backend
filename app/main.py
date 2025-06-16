@@ -13,7 +13,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.api.v1.api import api_router
 
 
-app = FastAPI()
+app = FastAPI(debug=True)
 
 # 허용할 프론트엔드 주소 (Vite는 보통 5173 포트)
 origins = [

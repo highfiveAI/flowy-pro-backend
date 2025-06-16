@@ -6,16 +6,18 @@ from app.services.orchestration import super_agent_for_meeting
 import json
 import os
 import re
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 from pydantic import BaseModel, UUID4
 from datetime import datetime
 from sqlalchemy.orm import Session
 from app.api.deps import get_db
-from app.crud.crud_meeting import insert_meeting, get_project_users
+from app.crud.crud_meeting import insert_meeting, insert_meeting_user, get_project_meetings
 from app.models.project_user import ProjectUser
 from app.models.flowy_user import FlowyUser
+from app.models.role import Role
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from app.models.meeting import Meeting
 
 router = APIRouter()
 
@@ -44,6 +46,9 @@ async def stt_api(
     subject: str = Form(...),
     agenda: str = Form(None),
     meeting_date: str = Form(...),
+    host_name: str = Form(...),
+    host_email: str = Form(...),
+    host_role: str = Form(...),
     attendees_name: List[str] = Form(...),
     attendees_email: List[str] = Form(...),
     attendees_role: List[str] = Form(...),
@@ -57,6 +62,10 @@ async def stt_api(
             result.extend([i.strip() for i in item.split(",") if i.strip()])
         return result
 
+    # host 정보 필수 체크
+    if not (host_name and host_email and host_role):
+        raise HTTPException(status_code=400, detail="회의장의 정보는 필수입니다.")
+
     names = split_items(attendees_name)
     emails = split_items(attendees_email)
     roles = split_items(attendees_role)
@@ -67,8 +76,22 @@ async def stt_api(
         raise HTTPException(status_code=400, detail="참석자 정보 개수가 일치하지 않습니다.")
     if len(names) < 1:
         raise HTTPException(status_code=400, detail="참석자는 1명 이상이어야 합니다.")
+ 
+    # host 정보도 포함해서 attendees 리스트 생성
     attendees_list = [
-        {"name": n, "email": e, "role": r}
+        {
+            "name": host_name,
+            "email": host_email,
+            "role": host_role,
+            "is_host": True
+        }
+    ] + [
+        {
+            "name": n,
+            "email": e,
+            "role": r,
+            "is_host": False
+        }
         for n, e, r in zip(names, emails, roles)
     ]
 
@@ -92,7 +115,13 @@ async def meeting_upload_api(
     meeting_title: str = Form(...),
     meeting_agenda: str = Form(...),
     meeting_date: str = Form(...),  # 'YYYY-MM-DD HH:mm:ss' 형태
-    db: Session = Depends(get_db)
+    host_name: str = Form(...),
+    host_email: str = Form(...),
+    host_role: str = Form(...),
+    attendees_name: List[str] = Form(...),
+    attendees_email: List[str] = Form(...),
+    attendees_role: List[str] = Form(...),
+    db: AsyncSession = Depends(get_db)
 ):
     # 1. 파일 저장
     save_dir = "app/temp_uploads"
@@ -104,7 +133,7 @@ async def meeting_upload_api(
     # 2. meeting_date를 datetime으로 변환
     meeting_date_obj = datetime.strptime(meeting_date, "%Y-%m-%d %H:%M:%S")
 
-    # 3. DB 저장
+    # 3. 회의 생성
     meeting = await insert_meeting(
         db=db,
         project_id=project_id,
@@ -113,6 +142,33 @@ async def meeting_upload_api(
         meeting_date=meeting_date_obj,
         meeting_audio_path=file_location
     )
+
+ # 4. host + 참석자 정보 한 번에 저장
+    HOST_ROLE_ID = "20ea65e2-d3b7-4adb-a8ce-9e67a2f21999"
+    ATTENDEE_ROLE_ID = "a55afc22-b4c1-48a4-9513-c66ff6ed3965"
+
+    all_names = [host_name] + list(attendees_name)
+    all_emails = [host_email] + list(attendees_email)
+    all_roles = [HOST_ROLE_ID] + [ATTENDEE_ROLE_ID] * len(attendees_name)
+
+    for name, email, role_id in zip(all_names, all_emails, all_roles):
+        # print(f"===> 시도: name={name}, email={email}, role_id={role_id}", flush=True)
+        user = await db.execute(
+            select(FlowyUser).where(FlowyUser.user_name == name, FlowyUser.user_email == email)
+        )
+        user_obj = user.scalar_one_or_none()
+        if not user_obj:
+            # print(f"!!! User not found: name={name}, email={email}", flush=True)
+            continue
+
+        # print(f"+++ Insert: user_id={user_obj.user_id}, role_id={role_id}", flush=True)
+        await insert_meeting_user(
+            db=db,
+            meeting_id=meeting.meeting_id,
+            user_id=user_obj.user_id,
+            role_id=role_id
+        )
+
     return {"meeting_id": meeting.meeting_id, "meeting_audio_path": file_location}
 
 @router.get("/project-users/{project_id}")
@@ -157,6 +213,9 @@ async def analyze_meeting_api(
     project_name: str = Form(...),
     subject: str = Form(...),
     chunks: str = Form(...),  # JSON 문자열로 전달받음
+    host_name: str = Form(...),
+    host_email: str = Form(...),
+    host_role: str = Form(...),
     attendees_list: str = Form(...),  # JSON 문자열로 전달받음
     agenda: str = Form(None),
     meeting_date: str = Form(None),
@@ -167,12 +226,21 @@ async def analyze_meeting_api(
     # chunks, attendees_list는 JSON 문자열로 받으므로 파싱
     parsed_chunks = json.loads(chunks)
     parsed_attendees = json.loads(attendees_list)
+    # host 정보 추가
+    host_info = {"name": host_name, "email": host_email, "role": host_role, "is_host": True}
+    if isinstance(parsed_attendees, list):
+        all_attendees = [host_info] + [
+            {**att, "is_host": False} if "is_host" not in att else att for att in parsed_attendees
+        ]
+    else:
+        all_attendees = [host_info]
+    # print(f"[DEBUG] tag_chunks_async에 넘기는 attendees_list: {all_attendees}", flush=True)
     # 분석 및 역할분담 로그 저장
     tag_result = await tag_chunks_async(
         project_name=project_name,
         subject=subject,
         chunks=parsed_chunks,
-        attendees_list=parsed_attendees,
+        attendees_list=all_attendees,
         agenda=agenda,
         meeting_date=meeting_date,
         db=db,
@@ -202,4 +270,28 @@ async def analyze_meeting_api(
         "meeting_id": meeting_id
     }
 
-    
+# 프로젝트 회의 목록 조회
+@router.get("/conferencelist/{project_id}")
+async def get_conference_list(
+    project_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        print(f"[DEBUG] project_id: {project_id}", flush=True)
+        meetings = await get_project_meetings(db, project_id)
+        print(f"[DEBUG] meetings: {meetings}", flush=True)
+        meeting_list = [
+            {
+                "meeting_id": str(m[0]),
+                "meeting_title": m[1],
+                "meeting_date": m[2]
+            }
+            for m in meetings
+        ]
+        print(f"[DEBUG] meeting_list: {meeting_list}", flush=True)
+        return {"meetings": meeting_list}
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] 에러 발생: {e}", flush=True)
+        traceback.print_exc()
+        return {"error": str(e)}

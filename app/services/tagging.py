@@ -8,9 +8,9 @@ from app.services.lang_feedback import feedback_agent
 from app.services.lang_role import assign_roles
 from app.services.lang_todo import extract_todos
 from typing import List, Dict, Any
-from app.crud.crud_meeting import insert_summary_log, insert_task_assign_log, insert_feedback_log
+from app.crud.crud_meeting import insert_summary_log, insert_task_assign_log, insert_feedback_log, get_feedback_type_map, insert_prompt_log
 from sqlalchemy.orm import Session
-
+from app.services.notify_email_service import send_meeting_email
 
 openai_client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -143,13 +143,58 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
     
     # DB 저장 (db가 있을 때만)
     if db is not None:
-        print(f"[tagging.py] insert_summary_log 호출: summary_result={summary_result}", flush=True)
+        # print(f"[tagging.py] insert_summary_log 호출: summary_result={summary_result}", flush=True)
         await insert_summary_log(db, summary_result["summary"] if isinstance(summary_result, dict) and "summary" in summary_result else summary_result, meeting_id)
-        print(f"[tagging.py] insert_task_assign_log 호출: assigned_roles={assigned_roles}", flush=True)
+        # print(f"[tagging.py] insert_task_assign_log 호출: assigned_roles={assigned_roles}", flush=True)
         await insert_task_assign_log(db, assigned_roles or {}, meeting_id)
-        print(f"[tagging.py] insert_feedback_log 호출: feedback_result={feedback_result}", flush=True)
-        await insert_feedback_log(db, feedback_result["feedback"] if isinstance(feedback_result, dict) and "feedback" in feedback_result else feedback_result, meeting_id)
+        # 피드백 유형 매핑 및 저장
+        feedback_type_map = await get_feedback_type_map(db)
+        if isinstance(feedback_result, dict):
+            for feedbacktype_name, feedback_detail in feedback_result.items():
+                feedbacktype_id = feedback_type_map.get(feedbacktype_name, '')
+                if feedbacktype_id:
+                    await insert_feedback_log(db, feedback_detail, feedbacktype_id, meeting_id)
+                else:
+                    print(f"Unknown feedbacktype_name: {feedbacktype_name}", flush=True)
+        else:
+            await insert_feedback_log(db, feedback_result, '', meeting_id)
+        # 모든 피드백 저장이 끝난 후 이메일 전송 (회의장에게만)
+        host = None
+        if attendees_list:
+            for person in attendees_list:
+                if person.get("is_host") == True:
+                    host = {
+                        "name": person.get("name"),
+                        "email": person.get("email"),
+                        "role": person.get("role", "host")
+                    }
+                    break
+        if host is not None:
+            meeting_info = {
+                "info_n": [host],
+                "dt": meeting_date,
+                "subj": subject
+            }
+            await send_meeting_email(meeting_info)
+        else:
+            print("회의장(Host) 정보가 없습니다.")
 
+    # # 프롬프트 로그 저장용 에이전트 유형 매핑 함수 및 insert 함수
+    # def get_agent_type_map():
+    #     return {
+    #         '요약': 'summary',
+    #         '검색': 'search',
+    #         '문서': 'docs',  # 필요시 추가
+    #     }
+
+    # async def insert_prompt_log_with_mapping(db, meeting_id: str, agent_type_name: str, prompt_output: str, prompt_input_date, prompt_output_date):
+    #     agent_type_map = get_agent_type_map()
+    #     agent_type = agent_type_map.get(agent_type_name)
+    #     if agent_type is None:
+    #         raise ValueError(f"지원하지 않는 에이전트 유형: {agent_type_name}")
+    #     return await insert_prompt_log(db, meeting_id, agent_type, prompt_output, prompt_input_date, prompt_output_date)
+
+    # 프롬프트 로그 저장
     return {
         "project_name": project_name,
         "subject": subject,
