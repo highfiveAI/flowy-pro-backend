@@ -148,3 +148,19 @@ async def get_project_users(db: AsyncSession, project_id: str) -> List[Dict]:
         for user in users
     ]
 
+# 프롬프트 로그 저장 함수
+async def insert_prompt_log(db: AsyncSession, meeting_id: str, agent_type: str, prompt_output: str, prompt_input_date: datetime, prompt_output_date: datetime):
+    from app.models import PromptLog
+    prompt_log = PromptLog(
+        prompt_id=str(uuid4()),
+        meeting_id=meeting_id,
+        agent_type=agent_type,
+        prompt_output=prompt_output,
+        prompt_input_date=prompt_input_date,
+        prompt_output_date=prompt_output_date
+    )
+    db.add(prompt_log)
+    await db.commit()
+    await db.refresh(prompt_log)
+    return prompt_log
+
