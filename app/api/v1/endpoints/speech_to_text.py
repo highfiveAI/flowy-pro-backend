@@ -18,6 +18,7 @@ from app.models.role import Role
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.meeting import Meeting
+from app.services.calendar_service.calendar_crud import insert_meeting_calendar
 
 router = APIRouter()
 
@@ -143,7 +144,7 @@ async def meeting_upload_api(
         meeting_audio_path=file_location
     )
 
- # 4. host + 참석자 정보 한 번에 저장
+    # 4. host + 참석자 정보 한 번에 저장
     HOST_ROLE_ID = "20ea65e2-d3b7-4adb-a8ce-9e67a2f21999"
     ATTENDEE_ROLE_ID = "a55afc22-b4c1-48a4-9513-c66ff6ed3965"
 
@@ -167,6 +168,14 @@ async def meeting_upload_api(
             meeting_id=meeting.meeting_id,
             user_id=user_obj.user_id,
             role_id=role_id
+        )
+        # calendar 일정 인서트
+        await insert_meeting_calendar(
+            db=db,
+            user_id=user_obj.user_id,
+            project_id=meeting.project_id,
+            title=meeting_title,
+            start=meeting_date_obj
         )
 
     return {"meeting_id": meeting.meeting_id, "meeting_audio_path": file_location}
