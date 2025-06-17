@@ -30,4 +30,4 @@ class FlowyUser(Base):
     company = relationship("Company", back_populates="users")
     project_users = relationship("ProjectUser", back_populates="user")
     meeting_users = relationship("MeetingUser", back_populates="user")
-    calendar = relationship("Calendar", back_populates="users")
+    calendars = relationship("Calendar", back_populates="user")

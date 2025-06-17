@@ -18,5 +18,5 @@ class Calendar(Base):
     created_at = Column(TIMESTAMP, nullable=False)
     updated_at = Column(TIMESTAMP)
 
-    users = relationship("FlowyUser", back_populates="calendar")
-    project = relationship("Project", back_populates="calendar")
+    user = relationship("FlowyUser", back_populates="calendars")
+    project = relationship("Project", back_populates="calendars")
