@@ -6,6 +6,7 @@ from app.schemas.project import ProjectCreate
 from sqlalchemy.sql import label
 from uuid import UUID
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import uuid
 
 async def get_project_users_with_projects_by_user_id(
@@ -41,7 +42,7 @@ async def create_project(
     project_data: ProjectCreate,
     db: AsyncSession
 ):
-    now = datetime.now()
+    now = datetime.now(ZoneInfo("Asia/Seoul")).replace(tzinfo=None)
     # 1. 프로젝트 생성
     new_project = Project(
         project_id=uuid.uuid4(),
@@ -172,7 +173,7 @@ async def insert_task_assign_log(
     meeting_id: UUID,
     updated_task_assign_contents: dict,
 ) -> bool:
-    now = datetime.now()
+    now = datetime.now(ZoneInfo("Asia/Seoul")).replace(tzinfo=None)
 
     new_log = TaskAssignLog(
         meeting_id=meeting_id,
@@ -195,7 +196,7 @@ async def insert_summary_log(
     meeting_id: UUID,
     updated_summary_contents: dict,
 ) -> bool:
-    now = datetime.now()
+    now = datetime.now(ZoneInfo("Asia/Seoul")).replace(tzinfo=None)
 
     new_log = SummaryLog(
         meeting_id=meeting_id,
