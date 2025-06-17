@@ -206,7 +206,9 @@ async def google_callback(request: Request, response: Response, db: AsyncSession
         id=str(auth_user.user_id),
         name=auth_user.user_name,
         email=auth_user.user_email,
-        login_id=auth_user.user_login_id
+        login_id=auth_user.user_login_id,
+        sysrole=str(auth_user.user_sysrole_id)
+
     )
 
     access_token = await create_access_token(
