@@ -78,11 +78,15 @@ async def login(user: LoginInfo, response: Response, db: AsyncSession = Depends(
     if not auth_user:
         raise HTTPException(status_code=401, detail="Invalid login_id or password")
 
+    # 로그 확인용 주석입니다. 후에 삭제 하셔도 됩니다.
+    print("사용자 권한 : ", auth_user.user_sysrole_id)
+
     payload = TokenPayload(
         id=str(auth_user.user_id),
         name=auth_user.user_name,
         email=auth_user.user_email,
-        login_id=auth_user.user_login_id
+        login_id=auth_user.user_login_id,
+        sysrole=str(auth_user.user_sysrole_id),
     )
 
     access_token = await create_access_token(
@@ -202,7 +206,9 @@ async def google_callback(request: Request, response: Response, db: AsyncSession
         id=str(auth_user.user_id),
         name=auth_user.user_name,
         email=auth_user.user_email,
-        login_id=auth_user.user_login_id
+        login_id=auth_user.user_login_id,
+        sysrole=str(auth_user.user_sysrole_id)
+
     )
 
     access_token = await create_access_token(
