@@ -5,8 +5,10 @@ from pydantic import BaseModel
 from typing import List, Optional, Annotated # Annotated 임포트 추가
 from uuid import UUID
 from datetime import datetime
-
-from app.services.docs_service.docs_recommend import run_doc_recommendation, recommend_docs_from_role
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.db.db_session import get_db_session
+from app.models.interdoc import Interdoc
+from app.services.docs_service.docs_recommend import run_doc_recommendation, recommend_docs_from_role, get_document_download_link
 from app.services.docs_service.docs_crud import (
     create_document,
     update_document,
@@ -16,6 +18,7 @@ from app.services.docs_service.docs_crud import (
 )
 from sqlalchemy.orm import Session # Session 임포트 추가
 from app.services.docs_service.docs_crud import get_db # get_db 함수 임포트 (서비스 파일에 정의되어 있음)
+from sqlalchemy import select
 
 router = APIRouter()
 
@@ -151,3 +154,12 @@ async def delete_existing_document(
     if result:
         return {"message": "문서가 성공적으로 삭제되었습니다"}
     raise HTTPException(status_code=500, detail="문서 삭제 중 오류가 발생했습니다")
+
+@router.get("/download/{interdocs_id}")
+async def get_doc_download_link(interdocs_id: UUID, db: AsyncSession = Depends(get_db_session)):
+    result = await db.execute(select(Interdoc.interdocs_path).where(Interdoc.interdocs_id == interdocs_id))
+    interdocs_path = result.scalar_one_or_none()
+    if not interdocs_path:
+        raise HTTPException(status_code=404, detail="문서를 찾을 수 없습니다.")
+    link = await get_document_download_link(interdocs_path)
+    return {"download_url": link}
