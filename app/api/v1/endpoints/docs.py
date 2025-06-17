@@ -1,5 +1,3 @@
-# app/routers/docs.py (가정 경로)
-
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends # Form, Depends 임포트 추가
 from pydantic import BaseModel
 from typing import List, Optional, Annotated # Annotated 임포트 추가
@@ -16,11 +14,14 @@ from app.services.docs_service.docs_crud import (
     get_document,
     delete_document
 )
+from app.services.admin_service.admin_check import require_company_admin
 from sqlalchemy.orm import Session # Session 임포트 추가
 from app.services.docs_service.docs_crud import get_db # get_db 함수 임포트 (서비스 파일에 정의되어 있음)
 from sqlalchemy import select
 
-router = APIRouter()
+router = APIRouter(
+    dependencies=[Depends(require_company_admin)]
+)
 
 # 요청/응답 모델
 class DocumentRecommendRequest(BaseModel):
