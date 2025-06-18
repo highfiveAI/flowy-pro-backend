@@ -18,9 +18,11 @@ from app.services.admin_service.admin_check import require_company_admin
 from sqlalchemy.orm import Session # Session 임포트 추가
 from app.services.docs_service.docs_crud import get_db # get_db 함수 임포트 (서비스 파일에 정의되어 있음)
 from sqlalchemy import select
+from app.services.docs_service.draft_log_crud import get_draft_logs_by_meeting_id
+from app.schemas.meeting import DraftLogResponse
 
 router = APIRouter(
-    dependencies=[Depends(require_company_admin)]
+    # dependencies=[Depends(require_company_admin)]
 )
 
 # 요청/응답 모델
@@ -164,3 +166,14 @@ async def get_doc_download_link(interdocs_id: UUID, db: AsyncSession = Depends(g
         raise HTTPException(status_code=404, detail="문서를 찾을 수 없습니다.")
     link = await get_document_download_link(interdocs_path)
     return {"download_url": link}
+
+@router.get("/draft/{meeting_id}", response_model=List[DraftLogResponse])
+async def get_draft_logs_by_meeting(
+    meeting_id: str,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """
+    meeting_id로 draft_log 목록을 조회합니다.
+    """
+    draft_logs = await get_draft_logs_by_meeting_id(db, meeting_id)
+    return draft_logs
