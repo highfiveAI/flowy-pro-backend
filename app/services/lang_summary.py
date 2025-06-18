@@ -2,8 +2,8 @@ from langchain_openai import ChatOpenAI
 import datetime
 import re, json
 
-def lang_summary(subject, chunks, tag_result, attendees_list=None, agenda=None, meeting_date=None):
-    llm = ChatOpenAI(model="gpt-4o", temperature=0)
+async def lang_summary(subject, chunks, tag_result, attendees_list=None, agenda=None, meeting_date=None):
+    llm = ChatOpenAI(model="gpt-4", temperature=0)
 
     # 점수 1~3인 문장만 추출
     filtered_tag = [
@@ -87,7 +87,7 @@ def lang_summary(subject, chunks, tag_result, attendees_list=None, agenda=None, 
     항목명, 항목 개수, 순서 등은 회의 내용에 맞게 자유롭게 정해도 되지만 반드시 JSON 구조로만 반환해.
     """
 
-    response = llm.invoke(prompt)
+    response = await llm.ainvoke(prompt)
     agent_output = response.content
 
     # JSON 파싱 시도 (코드블록 제거)
