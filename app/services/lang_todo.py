@@ -7,7 +7,7 @@ import calendar
 from typing import List, Dict, Any
 from app.services.lang_role import assign_roles
 
-openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+openai_client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def parse_relative_schedule(schedule_str: str, meeting_date: str) -> str:
     """
@@ -68,7 +68,7 @@ def parse_relative_schedule(schedule_str: str, meeting_date: str) -> str:
     except Exception:
         return schedule_str
 
-def extract_todos(subject: str, chunks: List[str], attendees_list: List[Dict[str, Any]], sentence_scores: List[Dict[str, Any]], agenda: str = None, meeting_date: str = None) -> Dict[str, Any]:
+async def extract_todos(subject: str, chunks: List[str], attendees_list: List[Dict[str, Any]], sentence_scores: List[Dict[str, Any]], agenda: str = None, meeting_date: str = None) -> Dict[str, Any]:
     """
     회의 내용에서 할 일을 추출하는 함수
     
@@ -164,7 +164,7 @@ def extract_todos(subject: str, chunks: List[str], attendees_list: List[Dict[str
 '''
 
     try:
-        response = openai_client.chat.completions.create(
+        response = await openai_client.chat.completions.create(
             model="gpt-4-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
@@ -226,7 +226,7 @@ def extract_todos(subject: str, chunks: List[str], attendees_list: List[Dict[str
 
         # 역할분배 agent 호출 (chunks 대신 full_meeting_sentences 전달)
         # 단 한 번만 호출되도록 보장
-        assigned_roles = assign_roles(subject, full_meeting_sentences, attendees_list, output, agenda, meeting_date)
+        assigned_roles = await assign_roles(subject, full_meeting_sentences, attendees_list, output, agenda, meeting_date)
         return {
             "todos_result": output,
             "assigned_roles": assigned_roles,

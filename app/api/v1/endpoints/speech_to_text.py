@@ -6,11 +6,12 @@ from app.services.orchestration import super_agent_for_meeting
 import json
 import os
 import re
+import aiofiles
 from typing import List, Optional, Dict, Tuple
 from pydantic import BaseModel, UUID4
 from datetime import datetime
 from sqlalchemy.orm import Session
-from app.api.deps import get_db
+from app.db.db_session import get_db_session
 from app.crud.crud_meeting import insert_meeting, insert_meeting_user, get_project_meetings
 from app.models.project_user import ProjectUser
 from app.models.flowy_user import FlowyUser
@@ -54,7 +55,7 @@ async def stt_api(
     attendees_email: List[str] = Form(...),
     attendees_role: List[str] = Form(...),
     project_name: str = Form(...),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db_session)
 ):
     print("=== stt_api called ===", flush=True)
     def split_items(items):
@@ -97,9 +98,10 @@ async def stt_api(
     ]
 
     temp_path = f"temp_{file.filename}"
-    with open(temp_path, "wb") as f:
-        f.write(await file.read())
-    result = stt_from_file(temp_path)
+    async with aiofiles.open(temp_path, "wb") as f:
+        content = await file.read()
+        await f.write(content)
+    result = await stt_from_file(temp_path)
     os.remove(temp_path)
     print("subject:", subject, "chunks in result:", "chunks" in result, flush=True)
     return {
@@ -122,14 +124,15 @@ async def meeting_upload_api(
     attendees_name: List[str] = Form(...),
     attendees_email: List[str] = Form(...),
     attendees_role: List[str] = Form(...),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db_session)
 ):
     # 1. 파일 저장
     save_dir = "app/temp_uploads"
     os.makedirs(save_dir, exist_ok=True)
     file_location = os.path.join(save_dir, file.filename)
-    with open(file_location, "wb") as buffer:
-        buffer.write(await file.read())
+    async with aiofiles.open(file_location, "wb") as buffer:
+        content = await file.read()
+        await buffer.write(content)
 
     # 2. meeting_date를 datetime으로 변환
     meeting_date_obj = datetime.strptime(meeting_date, "%Y-%m-%d %H:%M:%S")
@@ -183,7 +186,7 @@ async def meeting_upload_api(
 @router.get("/project-users/{project_id}")
 async def get_project_users(
     project_id: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db_session)
 ):
     # 비동기 쿼리 실행
     stmt = select(ProjectUser).where(ProjectUser.project_id == project_id)
@@ -228,13 +231,14 @@ async def analyze_meeting_api(
     attendees_list: str = Form(...),  # JSON 문자열로 전달받음
     agenda: str = Form(None),
     meeting_date: str = Form(None),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db_session)
 ):
     import json
     import re
     # chunks, attendees_list는 JSON 문자열로 받으므로 파싱
     parsed_chunks = json.loads(chunks)
     parsed_attendees = json.loads(attendees_list)
+    
     # host 정보 추가
     host_info = {"name": host_name, "email": host_email, "role": host_role, "is_host": True}
     if isinstance(parsed_attendees, list):
@@ -255,6 +259,7 @@ async def analyze_meeting_api(
         db=db,
         meeting_id=meeting_id
     )
+
     # 분석 후처리: 추천문서 등
     # all_txt_result = " ".join(tag_result.get("all_sentences") or [])
     # search_result = super_agent_for_meeting(all_txt_result)
@@ -280,27 +285,27 @@ async def analyze_meeting_api(
     }
 
 # 프로젝트 회의 목록 조회
-@router.get("/conferencelist/{project_id}")
-async def get_conference_list(
-    project_id: str,
-    db: AsyncSession = Depends(get_db)
-):
-    try:
-        print(f"[DEBUG] project_id: {project_id}", flush=True)
-        meetings = await get_project_meetings(db, project_id)
-        print(f"[DEBUG] meetings: {meetings}", flush=True)
-        meeting_list = [
-            {
-                "meeting_id": str(m[0]),
-                "meeting_title": m[1],
-                "meeting_date": m[2]
-            }
-            for m in meetings
-        ]
-        print(f"[DEBUG] meeting_list: {meeting_list}", flush=True)
-        return {"meetings": meeting_list}
-    except Exception as e:
-        import traceback
-        print(f"[ERROR] 에러 발생: {e}", flush=True)
-        traceback.print_exc()
-        return {"error": str(e)}
+# @router.get("/conferencelist/{project_id}")
+# async def get_conference_list(
+#     project_id: str,
+#     db: AsyncSession = Depends(get_db)
+# ):
+#     try:
+#         print(f"[DEBUG] project_id: {project_id}", flush=True)
+#         meetings = await get_project_meetings(db, project_id)
+#         print(f"[DEBUG] meetings: {meetings}", flush=True)
+#         meeting_list = [
+#             {
+#                 "meeting_id": str(m[0]),
+#                 "meeting_title": m[1],
+#                 "meeting_date": m[2]
+#             }
+#             for m in meetings
+#         ]
+#         print(f"[DEBUG] meeting_list: {meeting_list}", flush=True)
+#         return {"meetings": meeting_list}
+#     except Exception as e:
+#         import traceback
+#         print(f"[ERROR] 에러 발생: {e}", flush=True)
+#         traceback.print_exc()
+#         return {"error": str(e)}

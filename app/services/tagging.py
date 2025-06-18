@@ -56,7 +56,7 @@ def deduplicate_sentences(sentences):
         prev = s
     return deduped
 
-def gpt_split_sentences(text: str) -> list:
+async def gpt_split_sentences(text: str) -> list:
     """
     GPT API를 사용해 입력 텍스트를 문장 단위로 분리하여 리스트로 반환
     """
@@ -66,9 +66,8 @@ def gpt_split_sentences(text: str) -> list:
         "각 문장은 온점, 물음표, 느낌표 등으로 끝나야 해.\n"
         "텍스트:\n" + text
     )
-    openai.api_key = os.getenv("OPENAI_API_KEY")
     try:
-        response = openai.chat.completions.create(
+        response = await openai_client.chat.completions.create(
             model="gpt-4-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
@@ -82,7 +81,6 @@ def gpt_split_sentences(text: str) -> list:
         print(f"[gpt_split_sentences] 오류: {e}", flush=True)
         return [text]
 
-
 async def tag_chunks_async(project_name: str, subject: str, chunks: list, attendees_list: List[Dict[str, Any]] = None, agenda: str = None, meeting_date: str = None, db: Session = None, meeting_id: str = None) -> dict:
     print(f"[tag_chunks] 전달받은 subject: {subject}", flush=True)
     print(f"[tag_chunks] 전달받은 attendees_list: {attendees_list}", flush=True)
@@ -92,7 +90,7 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
     chunk_sentences = []
     for idx, chunk in enumerate(chunks):
         print(f"  청크 {idx+1}: {chunk}", flush=True)
-        sentences = gpt_split_sentences(chunk)
+        sentences = await gpt_split_sentences(chunk)
         if idx == 0:
             used_sentences = sentences
         else:
@@ -130,15 +128,14 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
     for s in sentence_scores:
         print(f"  [{s['index']+1}] 점수: {s['score']} / 이유: {s['reason']} / 문장: {s['sentence']}", flush=True)
 
-
     # lang_summary 호출
-    summary_result = lang_summary(subject, chunks, sentence_scores, attendees_list, agenda, meeting_date) if attendees_list is not None else lang_summary(subject, chunks, sentence_scores, None, agenda, meeting_date)
-    # print("[tagging.py] lang_summary result:", summary_result, flush=True) 
+    summary_result = await lang_summary(subject, chunks, sentence_scores, attendees_list, agenda, meeting_date) if attendees_list is not None else await lang_summary(subject, chunks, sentence_scores, None, agenda, meeting_date)
+    
     # lang_feedback 호출
-    feedback_result = feedback_agent(subject, chunks, sentence_scores, attendees_list, agenda, meeting_date) if attendees_list is not None else feedback_agent(subject, chunks, sentence_scores, None, agenda, meeting_date)
-    # print("[tagging.py] lang_feedback result:", feedback_result, flush=True)
+    feedback_result = await feedback_agent(subject, chunks, sentence_scores, attendees_list, agenda, meeting_date) if attendees_list is not None else await feedback_agent(subject, chunks, sentence_scores, None, agenda, meeting_date)
+    
     # 할 일 추출 agent 호출
-    todos_result = extract_todos(subject, chunks, attendees_list, sentence_scores, agenda, meeting_date)
+    todos_result = await extract_todos(subject, chunks, attendees_list, sentence_scores, agenda, meeting_date)
     assigned_roles = todos_result.get("assigned_roles")
     
     # DB 저장 (db가 있을 때만)
