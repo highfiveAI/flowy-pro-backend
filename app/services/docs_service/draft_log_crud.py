@@ -1,7 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.draft_log import DraftLog
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
+from sqlalchemy import select
 
 async def insert_draft_log(
     db: AsyncSession,
@@ -25,4 +26,12 @@ async def insert_draft_log(
     db.add(draft_log)
     await db.commit()
     await db.refresh(draft_log)
-    return draft_log 
+    return draft_log
+
+async def get_draft_logs_by_meeting_id(
+    db: AsyncSession,
+    meeting_id: str
+) -> List[DraftLog]:
+    query = select(DraftLog).where(DraftLog.meeting_id == meeting_id)
+    result = await db.execute(query)
+    return result.scalars().all() 
