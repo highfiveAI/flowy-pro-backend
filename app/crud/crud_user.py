@@ -49,6 +49,17 @@ async def create_user(db: AsyncSession, user: UserCreate):
     await db.refresh(db_user)
     return db_user
 
+# 회원가입한 사용자의 회사의 회사관리자 정보 조회
+async def get_company_admin_emails(db: AsyncSession, company_id: str, sysrole_id: str) -> list[str]:
+    stmt = select(FlowyUser.user_email, FlowyUser.user_name, FlowyUser.user_id).where(
+        FlowyUser.user_company_id == company_id,
+        FlowyUser.user_sysrole_id == sysrole_id
+    )
+    result = await db.execute(stmt)
+    emails = [row[0] for row in result.fetchall()]
+    return emails
+
+
 async def authenticate_user(db: AsyncSession, login_id: str, password: str):
     stmt = select(FlowyUser).where(FlowyUser.user_login_id == login_id)
 
