@@ -5,12 +5,15 @@ from transformers import WhisperProcessor, WhisperForConditionalGeneration
 from pydub import AudioSegment
 import os
 import math
-import openai
+# import openai
 import re
 import tempfile
 import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import aiofiles
+from openai import AsyncOpenAI
+
+openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def split_sentences_with_overlap(text):
     chunk_size = 7
@@ -54,20 +57,24 @@ def split_audio_to_chunks(file_path: str, chunk_length_sec: int = 150, overlap_s
     return chunk_paths
 
 
+
+
 async def transcribe_chunk(chunk_path: str) -> str:
     """
-    Whisper API로 청크 파일을 변환
+    Whisper API로 청크 파일을 변환하는 함수 (AsyncOpenAI 사용)
     """
     try:
-        openai.api_key = os.getenv("OPENAI_API_KEY")
         async with aiofiles.open(chunk_path, "rb") as audio_file:
             audio_data = await audio_file.read()
-            transcript = await openai.audio.transcriptions.create(
-                model="whisper-1",
-                file=audio_data,
-                response_format="text"
-            )
+
+        # Whisper에 오디오 파일 전달 (주의: file은 바이너리 객체로 전달해야 함)
+        transcript = await openai_client.audio.transcriptions.create(
+            model="whisper-1",
+            file=(os.path.basename(chunk_path), audio_data),
+            response_format="text"
+        )
         return str(transcript).strip()
+
     except Exception as e:
         return f"[ERROR] {e}"
 
@@ -110,9 +117,9 @@ async def gpt_refine_text(raw_text: str) -> str:
         "4. 의미가 불분명한 부분은 생략하지 말고 그대로 유지해주세요\n"
         "\n텍스트:\n" + raw_text
     )
-    openai.api_key = os.getenv("OPENAI_API_KEY")
+    # openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     try:
-        response = await openai.chat.completions.create(
+        response = await openai_client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,

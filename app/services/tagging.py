@@ -1,4 +1,4 @@
-import openai
+# import openai
 import os
 import asyncio
 import re
@@ -11,8 +11,9 @@ from typing import List, Dict, Any
 from app.crud.crud_meeting import insert_summary_log, insert_task_assign_log, insert_feedback_log, get_feedback_type_map, insert_prompt_log
 from sqlalchemy.orm import Session
 from app.services.notify_email_service import send_meeting_email
+from openai import AsyncOpenAI
 
-openai_client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 async def gpt_score_sentence_async(subject, prev_sent, target_sent, next_sent):
     """
@@ -45,6 +46,7 @@ async def gpt_score_sentence_async(subject, prev_sent, target_sent, next_sent):
         else:
             return {"score": None, "reason": "파싱 실패: " + content}
     except Exception as e:
+        print(f"[gpt_score_sentence_async] 오류: {e}", flush=True)
         return {"score": None, "reason": f"API 오류: {e}"}
 
 def deduplicate_sentences(sentences):
@@ -90,13 +92,18 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
     chunk_sentences = []
     for idx, chunk in enumerate(chunks):
         print(f"  청크 {idx+1}: {chunk}", flush=True)
-        sentences = await gpt_split_sentences(chunk)
-        if idx == 0:
-            used_sentences = sentences
-        else:
-            used_sentences = sentences[2:] if len(sentences) > 2 else []
-        print(f"    -> 분리된 문장(적용): {used_sentences}", flush=True)
-        chunk_sentences.append(used_sentences)
+        try:
+            sentences = await gpt_split_sentences(chunk)
+            if idx == 0:
+                used_sentences = sentences
+            else:
+                used_sentences = sentences[2:] if len(sentences) > 2 else []
+            print(f"    -> 분리된 문장(적용): {used_sentences}", flush=True)
+            chunk_sentences.append(used_sentences)
+        except Exception as e:
+            print(f"[tag_chunks] 문장 분리 오류: {e}", flush=True)
+            chunk_sentences.append([chunk])
+
     all_sentences = [sent for chunk in chunk_sentences for sent in chunk]
     print(f"[tag_chunks] 전체 문장 리스트 (합쳐진):", flush=True)
     for idx, sent in enumerate(all_sentences):
@@ -113,30 +120,39 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
             prev_sent = all_sentences[j-1] if j > 0 else ""
             next_sent = all_sentences[j+1] if j < len(all_sentences)-1 else ""
             tasks.append(gpt_score_sentence_async(subject, prev_sent, all_sentences[j], next_sent))
-        results = await asyncio.gather(*tasks)
-        for k, score_result in enumerate(results):
-            idx = i + k
-            sentence_scores.append({
-                "index": idx,
-                "sentence": all_sentences[idx],
-                "score": score_result.get("score"),
-                "reason": score_result.get("reason")
-            })
+        try:
+            results = await asyncio.gather(*tasks)
+            for k, score_result in enumerate(results):
+                idx = i + k
+                sentence_scores.append({
+                    "index": idx,
+                    "sentence": all_sentences[idx],
+                    "score": score_result.get("score"),
+                    "reason": score_result.get("reason")
+                })
+        except Exception as e:
+            print(f"[tag_chunks] 문장 평가 오류: {e}", flush=True)
         i += batch_size
 
     print("[tag_chunks] 문장별 평가 결과:", flush=True)
     for s in sentence_scores:
         print(f"  [{s['index']+1}] 점수: {s['score']} / 이유: {s['reason']} / 문장: {s['sentence']}", flush=True)
 
-    # lang_summary 호출
-    summary_result = await lang_summary(subject, chunks, sentence_scores, attendees_list, agenda, meeting_date) if attendees_list is not None else await lang_summary(subject, chunks, sentence_scores, None, agenda, meeting_date)
-    
-    # lang_feedback 호출
-    feedback_result = await feedback_agent(subject, chunks, sentence_scores, attendees_list, agenda, meeting_date) if attendees_list is not None else await feedback_agent(subject, chunks, sentence_scores, None, agenda, meeting_date)
-    
-    # 할 일 추출 agent 호출
-    todos_result = await extract_todos(subject, chunks, attendees_list, sentence_scores, agenda, meeting_date)
-    assigned_roles = todos_result.get("assigned_roles")
+    try:
+        # lang_summary 호출
+        summary_result = await lang_summary(subject, chunks, sentence_scores, attendees_list, agenda, meeting_date) if attendees_list is not None else await lang_summary(subject, chunks, sentence_scores, None, agenda, meeting_date)
+        
+        # lang_feedback 호출
+        feedback_result = await feedback_agent(subject, chunks, sentence_scores, attendees_list, agenda, meeting_date) if attendees_list is not None else await feedback_agent(subject, chunks, sentence_scores, None, agenda, meeting_date)
+        
+        # 할 일 추출 agent 호출
+        todos_result = await extract_todos(subject, chunks, attendees_list, sentence_scores, agenda, meeting_date)
+        assigned_roles = todos_result.get("assigned_roles")
+    except Exception as e:
+        print(f"[tag_chunks] 에이전트 호출 오류: {e}", flush=True)
+        summary_result = "에이전트 호출 중 오류가 발생했습니다."
+        feedback_result = {"오류": "에이전트 호출 중 오류가 발생했습니다."}
+        assigned_roles = {}
     
     # DB 저장 (db가 있을 때만)
     if db is not None:
