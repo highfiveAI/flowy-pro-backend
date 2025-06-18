@@ -4,7 +4,7 @@ import json
 from typing import List, Dict, Any
 import re
 
-def assign_roles(subject: str, full_meeting_sentences: List[str], attendees_list: List[Dict[str, Any]], output: dict, agenda: str = "", meeting_date: str = "") -> dict:
+async def assign_roles(subject: str, full_meeting_sentences: List[str], attendees_list: List[Dict[str, Any]], output: dict, agenda: str = "", meeting_date: str = "") -> dict:
     """
     subject: 회의 주제 (str)
     chunks: 회의 내용 청크 리스트 (List[str])
@@ -16,7 +16,7 @@ def assign_roles(subject: str, full_meeting_sentences: List[str], attendees_list
     # print(f"[assign_roles] 전달받은 output: {output}", flush=True)
     print(f"[assign_roles] 전달받은 full_meeting_sentences: {full_meeting_sentences}", flush=True)
     print(f"[assign_roles] 전달받은 attendees_list: {attendees_list}", flush=True)
-    llm = ChatOpenAI(model="gpt-4o", temperature=0)
+    llm = ChatOpenAI(model="gpt-4", temperature=0)
 
     # 참석자 이름 리스트 생성
     attendee_names = ", ".join([a.get("name", "") for a in attendees_list])
@@ -71,7 +71,7 @@ def assign_roles(subject: str, full_meeting_sentences: List[str], attendees_list
 {meeting_text}
 '''
 
-    response = llm.invoke(prompt)
+    response = await llm.ainvoke(prompt)
     agent_output = response.content
     print("[assign_roles] agent_output:", agent_output, flush=True)
 
