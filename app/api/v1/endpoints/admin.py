@@ -9,7 +9,7 @@ from app.db.db_session import get_db_session
 from app.services.admin_service.user_crud import UserCRUD
 from app.services.admin_service.company_crud import CompanyCRUD
 from app.services.admin_service.position_crud import PositionCRUD
-from app.services.admin_service.admin_check import require_company_admin, require_super_admin
+from app.services.admin_service.admin_check import require_company_admin, require_super_admin, require_any_admin
 
 
 # 사용자 관련 Pydantic 모델
@@ -138,7 +138,7 @@ async def get_user(user_id: UUID):
     return await crud.get_by_id(user_id)
 
 
-@router.get("/users/", response_model=List[UserResponse])
+@router.get("/users/", response_model=List[UserResponse], dependencies=[Depends(require_any_admin)])
 async def list_users(skip: int = 0, limit: int = 100):
     """사용자 목록을 조회합니다."""
     crud = UserCRUD()

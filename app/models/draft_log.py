@@ -11,7 +11,7 @@ class DraftLog(Base):
     meeting_id = Column(UUID(as_uuid=True), ForeignKey('meeting.meeting_id'), nullable=True)
     draft_trigger = Column(Text, nullable=False)
     docs_source_type = Column(Enum('internal', 'external', name='docs_source_type'), nullable=True)
-    ref_interdoc_id = Column(UUID(as_uuid=True), nullable=True)
+    ref_interdoc_id = Column(String(512), nullable=True)
     ref_external_link = Column(Text, nullable=True)
     draft_title = Column(String(100), nullable=True)
     draft_url = Column(Text, nullable=True)
