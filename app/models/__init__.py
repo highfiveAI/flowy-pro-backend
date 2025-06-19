@@ -1,5 +1,4 @@
 # app/models/__init__.py
-from app.models.admin import Admin
 from app.models.company_position import CompanyPosition
 from app.models.company import Company
 from app.models.draft_log import DraftLog
@@ -21,4 +20,4 @@ from app.models.prompt_log import PromptLog
 from app.models.calendar import Calendar
 # 다른 모델들...
 
-__all__ = ["CompanyPosition", "FlowyUser", "Interdoc", "Admin", "Company", "Company", "DraftLog", "Feedback", "FeedbackType", "MeetingUser", "Meeting", "ProfileImg", "ProjectUser", "Project", "Role", "SignupLog", "SummaryLog", "Sysrole", "TaskAssignLog", "PromptLog", "Calendar"]
+__all__ = ["CompanyPosition", "FlowyUser", "Interdoc", "Company", "Company", "DraftLog", "Feedback", "FeedbackType", "MeetingUser", "Meeting", "ProfileImg", "ProjectUser", "Project", "Role", "SignupLog", "SummaryLog", "Sysrole", "TaskAssignLog", "PromptLog", "Calendar"]
