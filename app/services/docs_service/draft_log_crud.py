@@ -9,6 +9,7 @@ async def insert_draft_log(
     meeting_id: Optional[str],
     draft_ref_reason: str,
     ref_interdoc_id: str,
+    draft_title: str,
     draft_trigger: str = "auto",
     docs_source_type: str = "internal",
     draft_created_date: Optional[datetime] = None
@@ -19,6 +20,7 @@ async def insert_draft_log(
         docs_source_type=docs_source_type,
         ref_interdoc_id=ref_interdoc_id,
         draft_ref_reason=draft_ref_reason,
+        draft_title=draft_title,
         draft_created_date=draft_created_date or datetime.utcnow()
     )
     

@@ -6,7 +6,7 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.db_session import get_db_session
 from app.models.interdoc import Interdoc
-from app.services.docs_service.docs_recommend import run_doc_recommendation, recommend_docs_from_role, get_document_download_link
+from app.services.docs_service.docs_recommend import run_doc_recommendation, recommend_documents, get_document_download_link
 from app.services.docs_service.docs_crud import (
     create_document,
     update_document,
