@@ -261,21 +261,22 @@ async def analyze_meeting_api(
     )
 
     # 분석 후처리: 추천문서 등
-    # all_txt_result = " ".join(tag_result.get("all_sentences") or [])
-    # search_result = super_agent_for_meeting(all_txt_result)
-    # urls = re.findall(r'https?://\S+', search_result)
-    urls = [
-        "https://example.com",
-        "https://example.org",
-        "https://testsite.com/page1",
-        "https://mywebsite.net/about",
-        "https://service.io/api/data",
-        "https://news.example.com/article123",
-        "https://blog.example.org/post456",
-        "https://shop.example.net/product789",
-        "https://app.example.io/dashboard",
-        "https://static.example.com/assets/img.png"
-    ]
+    all_txt_result = " ".join(tag_result.get("all_sentences") or [])
+    search_result = await super_agent_for_meeting(all_txt_result,db=db,meeting_id=meeting_id)
+    urls = re.findall(r'https?://\S+', search_result)
+    print(f"\n\n찾은 내부 문서 링크 함 보세요잉 :\n {search_result}\n\n")
+    # urls = [
+    #     "https://example.com",
+    #     "https://example.org",
+    #     "https://testsite.com/page1",
+    #     "https://mywebsite.net/about",
+    #     "https://service.io/api/data",
+    #     "https://news.example.com/article123",
+    #     "https://blog.example.org/post456",
+    #     "https://shop.example.net/product789",
+    #     "https://app.example.io/dashboard",
+    #     "https://static.example.com/assets/img.png"
+    # ]
 
     # print(f"서칭 결과물 : {search_result}")
     return {
