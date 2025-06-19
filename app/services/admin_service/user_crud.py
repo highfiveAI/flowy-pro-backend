@@ -443,3 +443,75 @@ class UserCRUD:
                 "company_name": company_name,
             })
         return admin_users
+
+    async def get_users_by_company(self, company_id: UUID) -> list[dict]:
+        """회사별 사용자 목록 조회"""
+        query = (
+            select(FlowyUser)
+            .where(FlowyUser.user_company_id == company_id)
+        )
+        result = await self.db.execute(query)
+        users = result.scalars().all()
+        return [
+            {
+                "user_id": user.user_id,
+                "user_login_id": user.user_login_id,
+                "user_email": user.user_email,
+                "user_name": user.user_name,
+                "user_phonenum": user.user_phonenum,
+                "user_company_id": user.user_company_id,
+                "user_dept_name": user.user_dept_name,
+                "user_team_name": user.user_team_name,
+                "user_position_id": user.user_position_id,
+                "user_jobname": user.user_jobname,
+                "user_sysrole_id": user.user_sysrole_id
+            }
+            for user in users
+        ]
+
+    async def get_admin_sysrole_id(self) -> UUID:
+        """관리자 권한 sysrole_id 동적 조회 (없으면 fallback)"""
+        query = select(Sysrole).where(Sysrole.sysrole_name.in_(["admin", "회사 관리자"]))
+        result = await self.db.execute(query)
+        sysrole = result.scalar_one_or_none()
+        if sysrole:
+            return sysrole.sysrole_id
+        # fallback: 기존 하드코딩 값
+        return UUID("f3d23b8c-6e7b-4f5d-a72d-8a9622f94084")
+
+    async def get_user_sysrole_id(self) -> UUID:
+        """일반 사용자 권한 sysrole_id 동적 조회 (없으면 fallback)"""
+        query = select(Sysrole).where(Sysrole.sysrole_name.in_(["user", "일반 사용자"]))
+        result = await self.db.execute(query)
+        sysrole = result.scalar_one_or_none()
+        if sysrole:
+            return sysrole.sysrole_id
+        # fallback: 기존 하드코딩 값 (예시)
+        return UUID("c4cb5e53-617e-463f-8ddb-67252f9a9742")
+
+    async def set_admin_user(self, user_id: UUID, company_id: UUID = None, force: bool = False) -> bool:
+        """사용자를 관리자 권한으로 지정 (force=True면 기존 관리자 일반 사용자로 변경)"""
+        query = select(FlowyUser).filter(FlowyUser.user_id == user_id)
+        result = await self.db.execute(query)
+        user = result.scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+        admin_sysrole_id = await self.get_admin_sysrole_id()
+        user_sysrole_id = await self.get_user_sysrole_id()
+        # 회사 ID가 없으면 대상 사용자로부터 추출
+        if not company_id:
+            company_id = user.user_company_id
+        if force:
+            # 해당 회사의 기존 관리자 모두 일반 사용자로 변경
+            admin_query = select(FlowyUser).where(
+                (FlowyUser.user_company_id == company_id) & (FlowyUser.user_sysrole_id == admin_sysrole_id)
+            )
+            admin_result = await self.db.execute(admin_query)
+            admins = admin_result.scalars().all()
+            for admin in admins:
+                if admin.user_id != user.user_id:
+                    admin.user_sysrole_id = user_sysrole_id
+        user.user_sysrole_id = admin_sysrole_id
+        await self.db.commit()
+        await self.db.refresh(user)
+        return True

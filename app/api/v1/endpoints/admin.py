@@ -1,4 +1,4 @@
-from fastapi import APIRouter, status, Depends
+from fastapi import APIRouter, status, Depends, HTTPException
 from typing import List
 from uuid import UUID
 from pydantic import BaseModel, EmailStr
@@ -167,6 +167,39 @@ async def update_user_status(user_id: UUID, status_update: UserStatusUpdate):
     return await crud.update_user_status(user_id, status_update.status)
 
 
+@router.get("/users/company/{company_id}")
+async def get_users_by_company(company_id: UUID):
+    """
+    회사별 사용자 목록 조회
+    """
+    crud = UserCRUD()
+    return await crud.get_users_by_company(company_id)
+
+@router.put("/set_admin/{user_id}")
+async def set_admin_user(user_id: UUID, force: bool = False):
+    """
+    사용자를 관리자 권한으로 지정 (force=True면 기존 관리자 일반 사용자로 변경)
+    """
+    crud = UserCRUD()
+    # 1. 해당 사용자의 회사 ID 조회
+    user = await crud.get_by_id(user_id)
+    company_id = user["user_company_id"]
+
+    # 2. 해당 회사에 이미 관리자가 있는지 확인
+    admin_users = await crud.get_users_by_company(company_id)
+    admin_sysrole_id = await crud.get_admin_sysrole_id()
+    current_admins = [u for u in admin_users if str(u["user_sysrole_id"]) == str(admin_sysrole_id)]
+
+    if current_admins and not force:
+        # 이미 관리자가 있음 → 프론트에 경고 메시지 전달
+        return {
+            "already_admin": True,
+            "message": "이미 이 회사에 관리자가 있습니다. 선택한 사용자를 관리자로 설정하시겠습니까?"
+        }
+
+    # 3. 실제 관리자 지정 (force 옵션 반영)
+    result = await crud.set_admin_user(user_id, company_id=company_id, force=force)
+    return {"success": result}
 
 
 # 회사 관리 API
