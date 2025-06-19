@@ -1,8 +1,10 @@
 from datetime import datetime, timedelta
-from jose import JWTError, jwt
+from jose import jwt, JWTError, ExpiredSignatureError
 from app.core.config import settings
 from app.schemas.signup_info import TokenPayload
 from fastapi import Request, HTTPException
+from fastapi.responses import JSONResponse
+import json
 
 SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = "HS256"
@@ -33,14 +35,24 @@ async def verify_access_token(token: str) -> TokenPayload:
         raise ValueError("Could not validate token")
 
 async def check_access_token(request: Request):
+    
     token = request.cookies.get("access_token")
     if not token:
-        raise HTTPException(status_code=401, detail="인증 실패")
+        raise HTTPException(status_code=401, detail="쿠키에 access_token이 없습니다.")
 
     try:
         user: TokenPayload = await verify_access_token(token)
-        return user
 
-    except ValueError:
-        raise HTTPException(status_code=401, detail="인증 실패")
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="토큰이 만료되었습니다.")
+
+    except JWTError as e:
+        raise HTTPException(status_code=401, detail=f"JWT 파싱 오류: {str(e)}")
+
+    except ValueError as ve:
+        raise HTTPException(status_code=401, detail=f"토큰 검증 오류: {str(ve)}")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"서버 오류: {str(e)}")
     
+    return user
