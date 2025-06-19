@@ -62,7 +62,7 @@ async def recommend_documents(request: DocumentRecommendRequest):
     - **query**: 검색할 역할 또는 업무 내용
     """
     try:
-        result = await recommend_docs_from_role(request.query)
+        result = await recommend_documents(request.query)
 
         if isinstance(result, str):
             return DocumentRecommendResponse(success=False, message=result)
