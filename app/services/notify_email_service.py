@@ -46,6 +46,7 @@ async def send_email(
     fm = FastMail(conf)
     await fm.send_message(message)
 
+# 회의 분석 완료 알림 메일 전송 함수
 async def send_meeting_email(meeting_info):
     """
     회의 분석 완료 알림 메일 전송 함수
@@ -59,7 +60,29 @@ async def send_meeting_email(meeting_info):
         안녕하세요, {name}님 FLOWY입니다.<br><br>
         {meeting_info['dt']}에 진행된 '{meeting_info['subj']}' 회의 분석이 완료되었습니다.<br><br>
         회의의 주요 내용과 논의 결과는 회의 관리에서 보실 수 있습니다.<br><br>
+        <a href='http://localhost:5173/dashboard/{meeting_info['meeting_id']}'>http://localhost:5173/dashboard/{meeting_info['meeting_id']}</a><br><br>
         감사합니다.<br><br>
-        FLOWY 드림
+        Flowy pro 드림
         """
         await send_email(subject, [email], body) 
+
+# 회원가입 알림 메일 회사 관리자에게 전송하는 함수
+async def send_signup_email_to_admin(user_info, admin_emails):
+    """
+    회원가입 알림 메일 전송 함수
+    user_info: dict, name(이름), email(이메일), user_id(USERID) 필수
+    admin_emails: 회사 관리자 이메일 리스트
+    """
+    subject = f"[FLOWY PRO] 회원가입 요청 ('{user_info['name']}({user_info['user_id']})')"
+    body = f"""
+    안녕하세요, Flowy Pro 입니다.<br><br>
+    '{user_info['name']}({user_info['user_login_id']})'님의 신규 회원가입 요청으로 알림 메일 드립니다.<br><br>
+    회원가입 승인 여부를 확인해주세요.<br><br>
+    <a href='http://localhost:5173/admin/user'>http://localhost:5173/admin/user</a><br><br>
+    감사합니다.<br>
+    Flowy pro 드림
+    """
+    await send_email(subject, admin_emails, body) 
+
+
+    

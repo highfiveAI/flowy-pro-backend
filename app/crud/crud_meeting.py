@@ -149,21 +149,29 @@ async def get_conference_list(db: AsyncSession, project_id: str) -> List[Dict]:
         for user in users
     ]
 
-# 프롬프트 로그 저장 함수
-async def insert_prompt_log(db: AsyncSession, meeting_id: str, agent_type: str, prompt_output: str, prompt_input_date: datetime, prompt_output_date: datetime):
-    from app.models import PromptLog
-    prompt_log = PromptLog(
-        prompt_id=str(uuid4()),
-        meeting_id=meeting_id,
-        agent_type=agent_type,
-        prompt_output=prompt_output,
-        prompt_input_date=prompt_input_date,
-        prompt_output_date=prompt_output_date
-    )
-    db.add(prompt_log)
-    await db.commit()
-    await db.refresh(prompt_log)
-    return prompt_log
+# 프롬프트 로그 저장용 에이전트 유형 매핑 함수 및 insert 함수
+# async def get_agent_type_map():
+#     return {
+#         '요약': 'summary',
+#         '검색': 'search',
+#         '문서': 'docs',  # 필요시 추가
+#     }
+
+# # 프롬프트 로그 저장 함수
+# async def insert_prompt_log(db: AsyncSession, meeting_id: str, agent_type: str, prompt_output: str, prompt_input_date: datetime, prompt_output_date: datetime):
+#     from app.models import PromptLog
+#     prompt_log = PromptLog(
+#         prompt_id=str(uuid4()),
+#         meeting_id=meeting_id,
+#         agent_type=agent_type,
+#         prompt_output=prompt_output,
+#         prompt_input_date=prompt_input_date,
+#         prompt_output_date=prompt_output_date
+#     )
+#     db.add(prompt_log)
+#     await db.commit()
+#     await db.refresh(prompt_log)
+#     return prompt_log
 
 # 프로젝트 회의 목록 조회
 async def get_project_meetings(db: AsyncSession, project_id: str):
