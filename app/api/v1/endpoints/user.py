@@ -8,7 +8,7 @@ from app.core.security import verify_password
 from app.core.config import settings
 from app.schemas.signup_info import SocialUserCreate, UserCreate, LoginInfo, TokenPayload
 from app.schemas.mypage import UserUpdateRequest, UserWithCompanyInfo
-from app.crud.crud_user import create_user, authenticate_user, only_authenticate_email, get_projects_for_user, update_user_info, get_mypage_user
+from app.crud.crud_user import create_user, authenticate_user, only_authenticate_email, get_projects_for_user, update_user_info, get_mypage_user, get_company_admin_emails
 from app.crud.crud_company import get_signup_meta
 from app.db.db_session import get_db_session
 from app.services.signup_service.auth import create_access_token, verify_token, verify_access_token
@@ -64,10 +64,33 @@ async def social_signup(request: Request, user_data: SocialUserCreate, db: Async
     )
 
     return await create_user(db, new_user)
+    
 # 회원가입
 @router.post("/signup")
 async def signup(user: UserCreate, db: AsyncSession = Depends(get_db_session)):
-    return await create_user(db, user)
+    try:
+        # 1. DB 저장
+        db_user = await create_user(db, user)
+    except Exception as e:
+        # 2. DB 저장 실패 시 에러 반환, 메일 발송 X
+        return JSONResponse(status_code=400, content={"message": f"회원가입 실패: {str(e)}"})
+    
+    # 3. DB 저장 성공 시 관리자에게 메일 발송
+    try:
+        from app.services.notify_email_service import send_signup_email_to_admin
+        user_info = {
+            "name": db_user.user_name,
+            "email": db_user.user_email,
+            "user_id": str(db_user.user_id)
+        }
+        admin_emails = await get_company_admin_emails(db, db_user.user_company_id, 'f3d23b8c-6e7b-4f5d-a72d-8a9622f94084')
+        if admin_emails:
+            await send_signup_email_to_admin(user_info, admin_emails)
+    except Exception as e:
+        # 메일 발송 실패는 회원가입 성공과 별개로 안내 (선택)
+        return JSONResponse(status_code=200, content={"message": "회원가입 성공, 메일 발송 실패", "error": str(e)})
+    
+    return {"message": "회원가입 성공, 메일 발송 완료"}
 
 # 로그인
 @router.post("/login")
@@ -236,7 +259,7 @@ async def google_callback(request: Request, response: Response, db: AsyncSession
 async def read_projects_for_user(user_id: UUID, db: AsyncSession = Depends(get_db_session)):
     projects = await get_projects_for_user(db, user_id)
     projects_list = [
-        {"userName": p[0], "projectName": p[1], "projectId": str(p[2]), "projectCreatedDate": p[3], "projectEndDate": p[4]} for p in projects
+        {"userName": p[0], "projectName": p[1], "projectId": str(p[2]), "projectCreatedDate": p[3], "projectEndDate": p[4], "projectDetail": p[6]} for p in projects
     ]
     return {"projects": projects_list}
 

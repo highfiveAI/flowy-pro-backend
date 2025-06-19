@@ -1,6 +1,7 @@
 from pydantic import BaseModel, UUID4
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from datetime import datetime
+from uuid import UUID
 
 # 회의 테이블
 class MeetingBase(BaseModel):
@@ -62,5 +63,21 @@ class FeedbackCreate(FeedbackBase):
 
 class FeedbackResponse(FeedbackBase):
     feedback_id: UUID4
+    class Config:
+        from_attributes = True
+
+# DraftLog 응답 스키마
+class DraftLogResponse(BaseModel):
+    draft_id: UUID
+    meeting_id: Optional[UUID]
+    draft_trigger: str
+    docs_source_type: Optional[str]
+    ref_interdoc_id: Optional[str]
+    ref_external_link: Optional[str]
+    draft_title: Optional[str]
+    draft_url: Optional[str]
+    draft_ref_reason: str
+    draft_created_date: datetime
+
     class Config:
         from_attributes = True
