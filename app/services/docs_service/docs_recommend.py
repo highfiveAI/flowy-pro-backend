@@ -5,6 +5,7 @@ from langchain_community.vectorstores import PGVector
 from langchain_openai import ChatOpenAI
 from langchain.agents import Tool, AgentType, initialize_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage, SystemMessage
 from app.core.config import settings
 import aiopg
@@ -67,7 +68,7 @@ vectorstore = PGVector(
 retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 3, "score_threshold": 0.1})
 
 # 3. 문서 추천 툴 함수 정의 (직접 SQL 사용)
-async def direct_vector_search(query_text: str, k: int = 3):
+async def direct_vector_search(query_text: str, k: int = 1):
     """직접 SQL로 벡터 유사도 검색"""
     try:
         # 쿼리 벡터화
@@ -134,6 +135,7 @@ async def get_document_download_link(s3_key: str) -> str:
         return f"예상치 못한 오류 발생: {str(e)}"
 
 async def recommend_docs_from_role(role_text: str) -> str:
+    print(f"------------------------------------ 문서 추천 에이전트 실행 ------------------------------------")
     try:
         # 툴 오용 방지: 파일명으로 검색하는 경우 차단
         if role_text.endswith(".hwp") or role_text.endswith(".docx"):
@@ -171,20 +173,38 @@ async def recommend_docs_from_role(role_text: str) -> str:
         return f"문서 추천 중 오류 발생: {e}"
 
 # 4. 에이전트용 툴 정의
+# tools = [
+#     Tool(
+#         name="RecommendInternalDocs",
+#         func=recommend_docs_from_role,
+#         description="""사용자의 역할 분담 내용에 따라 관련된 사내 문서를 한국어로 추천합니다. 
+#                      예: '회의록 작성', '신입 교육 자료', '경비 정산 규정' 등. 
+#                      절대 영어로 변환하지 말고, 한국어 그대로 툴의 인풋으로 전달해야 합니다."""
+#     ),
+#     Tool(
+#         name="GetDocumentDownloadLink",
+#         func=get_document_download_link,
+#         description="""S3 키를 받아 해당 문서의 다운로드 링크를 생성합니다.
+#                      입력 형식: "S3 키 경로" (예: "documents/example.pdf")"""
+#     )
+# ]
+
+@tool
+async def RecommendInternalDocs(role_text: str) -> str:
+    """사용자의 역할 분담 내용에 따라 관련된 사내 문서를 한국어로 추천합니다. 
+                      예: '회의록 작성', '신입 교육 자료', '경비 정산 규정' 등. 
+                      절대 영어로 변환하지 말고, 한국어 그대로 툴의 인풋으로 전달해야 합니다."""
+    return await recommend_docs_from_role(role_text)
+
+@tool
+async def GetDocumentDownloadLink(s3_key: str) -> str:
+    """S3 키를 받아 해당 문서의 다운로드 링크를 생성합니다.
+                      입력 형식: "S3 키 경로" (예: "documents/example.pdf")"""
+    return await get_document_download_link(s3_key)
+
 tools = [
-    Tool(
-        name="RecommendInternalDocs",
-        func=recommend_docs_from_role,
-        description="""사용자의 역할 분담 내용에 따라 관련된 사내 문서를 한국어로 추천합니다. 
-                     예: '회의록 작성', '신입 교육 자료', '경비 정산 규정' 등. 
-                     절대 영어로 변환하지 말고, 한국어 그대로 툴의 인풋으로 전달해야 합니다."""
-    ),
-    Tool(
-        name="GetDocumentDownloadLink",
-        func=get_document_download_link,
-        description="""S3 키를 받아 해당 문서의 다운로드 링크를 생성합니다.
-                     입력 형식: "S3 키 경로" (예: "documents/example.pdf")"""
-    )
+    RecommendInternalDocs,
+    GetDocumentDownloadLink
 ]
 
 # 5. LLM 및 에이전트 초기화
@@ -196,12 +216,14 @@ agent_prompt = ChatPromptTemplate.from_messages([
                                     사용자의 질문에 대해 다음과 같은 순서로 작업을 수행합니다:
                                     1. RecommendInternalDocs 툴을 사용하여 관련 문서를 찾습니다.
                                     2. 문서를 찾으면, GetDocumentDownloadLink 툴을 사용하여 각 문서의 다운로드 링크를 생성합니다.
+                                    3. 생성한 다운로드 링크를 아웃풋에 넣습니다.
                                     
                                     모든 대화와 툴 사용은 한국어로 진행되어야 합니다.
                                     특히, RecommendInternalDocs 툴의 'role_text' 인풋은 절대 영어로 번역하지 말고,
                                     사용자가 입력한 한국어 내용을 그대로 전달해야 합니다.
                                     
-                                    문서 추천을 찾지 못하면 사용자에게 다른 검색어를 제안하거나 직접 문의할 수 있습니다."""),
+                                    각 문서의 다운로드 링크를 반드시 포함해서 출력하세요.
+                                    링크가 없으면 "링크 없음"이라고 명시하세요."""),
     HumanMessage(content="{input}"),
     MessagesPlaceholder(variable_name="agent_scratchpad"),
 ])

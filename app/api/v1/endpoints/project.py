@@ -3,9 +3,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.db_session import get_db_session
 from app.crud.crud_user import get_all_users
 from app.schemas.signup_info import TokenPayload
-from app.schemas.project import ProjectCreate, ProjectNameUpdate, TaskAssignLogCreate
+from app.schemas.project import ProjectCreate, ProjectNameUpdate, TaskAssignLogCreate, SummaryLogCreate
 from app.services.signup_service.auth import check_access_token
-from app.crud.crud_project import get_project_users_with_projects_by_user_id, get_meetings_with_users_by_project_id, create_project, get_meeting_detail_with_project_and_users, delete_project_by_id, update_project_name_by_id, insert_task_assign_log
+from app.crud.crud_project import get_project_users_with_projects_by_user_id, get_meetings_with_users_by_project_id, create_project, get_meeting_detail_with_project_and_users, delete_project_by_id, update_project_name_by_id, insert_task_assign_log, insert_summary_log
 from uuid import UUID
 import traceback
 from fastapi.responses import JSONResponse
@@ -78,6 +78,20 @@ async def create_task_assign_log(
         db=db,
         meeting_id=log_data.meeting_id,
         updated_task_assign_contents=log_data.updated_task_assign_contents
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to create task assign log")
+    return {"message": "Task assign log created successfully"}
+
+@router.post("/update_summary")
+async def create_summary_log(
+    log_data: SummaryLogCreate,
+    db: AsyncSession = Depends(get_db_session)
+):
+    success = await insert_summary_log(
+        db=db,
+        meeting_id=log_data.meeting_id,
+        updated_summary_contents=log_data.updated_summary_contents
     )
     if not success:
         raise HTTPException(status_code=500, detail="Failed to create task assign log")

@@ -6,6 +6,7 @@ class TokenPayload(BaseModel):
     name: str
     email: str
     login_id: str
+    sysrole: str
 
 # 응답용 스키마
 class User(BaseModel):

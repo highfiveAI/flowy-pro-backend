@@ -6,7 +6,16 @@ from app.schemas.project import ProjectCreate
 from sqlalchemy.sql import label
 from uuid import UUID
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import uuid
+
+feedbacktype_ids = [
+    UUID("e508d0b2-1bfd-42a2-9687-1ae6cd36c648"),
+    UUID("6cb5e437-bc6b-4a37-a3c4-473d9c0bebe2"),
+    UUID("ab5a65c6-31a4-493b-93ff-c47e00925d17"),
+    UUID("0a5a835d-53d0-43a6-b821-7c36f603a071"),
+    UUID("73c0624b-e1af-4a2b-8e54-c1f8f7dab827"),
+]
 
 async def get_project_users_with_projects_by_user_id(
     db: AsyncSession, user_id: UUID
@@ -41,7 +50,7 @@ async def create_project(
     project_data: ProjectCreate,
     db: AsyncSession
 ):
-    now = datetime.utcnow()
+    now = datetime.now(ZoneInfo("Asia/Seoul")).replace(tzinfo=None)
     # 1. 프로젝트 생성
     new_project = Project(
         project_id=uuid.uuid4(),
@@ -107,12 +116,14 @@ async def get_meeting_detail_with_project_and_users(
 
         feedback_stmt = (
             select(Feedback)
-            .where(Feedback.meeting_id == meeting_id)
+            .where(
+                Feedback.meeting_id == meeting_id,
+                Feedback.feedbacktype_id.in_(feedbacktype_ids)
+            )
             .order_by(desc(Feedback.feedback_created_date))
-            .limit(1)
         )
         feedback_result = await db.execute(feedback_stmt)
-        feedback = feedback_result.scalars().first()
+        feedback = feedback_result.scalars().all()
 
         task_assign_role_stmt = (
             select(TaskAssignLog)
@@ -172,12 +183,35 @@ async def insert_task_assign_log(
     meeting_id: UUID,
     updated_task_assign_contents: dict,
 ) -> bool:
-    now = datetime.utcnow()
+    now = datetime.now(ZoneInfo("Asia/Seoul")).replace(tzinfo=None)
 
     new_log = TaskAssignLog(
         meeting_id=meeting_id,
         updated_task_assign_contents=updated_task_assign_contents,
         updated_task_assign_date=datetime.now()
+    )
+    
+    db.add(new_log)
+    try:
+        await db.commit()
+        return True
+    except Exception as e:
+        await db.rollback()
+        # 필요시 로그 출력 or 예외 처리
+        return False
+
+# 요약 로그 업데이트
+async def insert_summary_log(
+    db: AsyncSession,
+    meeting_id: UUID,
+    updated_summary_contents: dict,
+) -> bool:
+    now = datetime.now(ZoneInfo("Asia/Seoul")).replace(tzinfo=None)
+
+    new_log = SummaryLog(
+        meeting_id=meeting_id,
+        updated_summary_contents=updated_summary_contents,
+        updated_summary_date=now
     )
     
     db.add(new_log)

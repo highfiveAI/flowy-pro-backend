@@ -101,11 +101,15 @@ async def login(user: LoginInfo, response: Response, db: AsyncSession = Depends(
     if not auth_user:
         raise HTTPException(status_code=401, detail="Invalid login_id or password")
 
+    # 로그 확인용 주석입니다. 후에 삭제 하셔도 됩니다.
+    print("사용자 권한 : ", auth_user.user_sysrole_id)
+
     payload = TokenPayload(
         id=str(auth_user.user_id),
         name=auth_user.user_name,
         email=auth_user.user_email,
-        login_id=auth_user.user_login_id
+        login_id=auth_user.user_login_id,
+        sysrole=str(auth_user.user_sysrole_id),
     )
 
     access_token = await create_access_token(
@@ -225,7 +229,9 @@ async def google_callback(request: Request, response: Response, db: AsyncSession
         id=str(auth_user.user_id),
         name=auth_user.user_name,
         email=auth_user.user_email,
-        login_id=auth_user.user_login_id
+        login_id=auth_user.user_login_id,
+        sysrole=str(auth_user.user_sysrole_id)
+
     )
 
     access_token = await create_access_token(
@@ -253,7 +259,7 @@ async def google_callback(request: Request, response: Response, db: AsyncSession
 async def read_projects_for_user(user_id: UUID, db: AsyncSession = Depends(get_db_session)):
     projects = await get_projects_for_user(db, user_id)
     projects_list = [
-        {"userName": p[0], "projectName": p[1], "projectId": str(p[2]), "projectCreatedDate": p[3], "projectEndDate": p[4]} for p in projects
+        {"userName": p[0], "projectName": p[1], "projectId": str(p[2]), "projectCreatedDate": p[3], "projectEndDate": p[4], "projectDetail": p[6]} for p in projects
     ]
     return {"projects": projects_list}
 

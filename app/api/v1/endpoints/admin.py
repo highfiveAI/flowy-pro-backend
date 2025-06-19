@@ -1,12 +1,15 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, status, Depends
 from typing import List
 from uuid import UUID
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.db.db_session import get_db_session
 
 from app.services.admin_service.user_crud import UserCRUD
 from app.services.admin_service.company_crud import CompanyCRUD
 from app.services.admin_service.position_crud import PositionCRUD
+from app.services.admin_service.admin_check import require_company_admin, require_super_admin, require_any_admin
 
 
 # 사용자 관련 Pydantic 모델
@@ -97,6 +100,21 @@ class PositionResponse(PositionBase):
     class Config:
         from_attributes = True
 
+# 관리자 모델
+class AdminUserResponse(BaseModel):
+    user_id: UUID
+    user_name: str
+    user_email: EmailStr 
+    user_login_id: str
+    user_phonenum: str
+    user_company_id: UUID
+    user_dept_name: str | None = None
+    user_team_name: str | None = None
+    user_position_id: UUID
+    user_jobname: str | None = None
+    user_sysrole_id: UUID
+    company_name: str | None = None
+
 
 router = APIRouter()
 
@@ -107,6 +125,11 @@ async def create_user(user: UserCreate):
     crud = UserCRUD()
     return await crud.create(user.model_dump())
 
+@router.get("/users/admin_users", response_model=List[AdminUserResponse], dependencies=[Depends(require_super_admin)])
+async def list_admin_users(db: AsyncSession = Depends(get_db_session)):
+    """관리자 권한을 가진 사용자 목록을 조회합니다."""
+    crud = UserCRUD()
+    return await crud.get_admin_users(db)
 
 @router.get("/users/{user_id}", response_model=UserResponse)
 async def get_user(user_id: UUID):
@@ -115,7 +138,7 @@ async def get_user(user_id: UUID):
     return await crud.get_by_id(user_id)
 
 
-@router.get("/users/", response_model=List[UserResponse])
+@router.get("/users/", response_model=List[UserResponse], dependencies=[Depends(require_any_admin)])
 async def list_users(skip: int = 0, limit: int = 100):
     """사용자 목록을 조회합니다."""
     crud = UserCRUD()
@@ -144,36 +167,38 @@ async def update_user_status(user_id: UUID, status_update: UserStatusUpdate):
     return await crud.update_user_status(user_id, status_update.status)
 
 
+
+
 # 회사 관리 API
-@router.post("/companies/", response_model=CompanyResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/companies/", response_model=CompanyResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_super_admin)])
 async def create_company(company: CompanyCreate):
     """새로운 회사를 생성합니다."""
     crud = CompanyCRUD()
     return await crud.create(company.model_dump())
 
 
-@router.get("/companies/{company_id}", response_model=CompanyResponse)
+@router.get("/companies/{company_id}", response_model=CompanyResponse, dependencies=[Depends(require_super_admin)])
 async def get_company(company_id: UUID):
     """특정 회사의 정보를 조회합니다."""
     crud = CompanyCRUD()
     return await crud.get_by_id(company_id)
 
 
-@router.get("/companies/", response_model=List[CompanyResponse])
+@router.get("/companies/", response_model=List[CompanyResponse], dependencies=[Depends(require_super_admin)])
 async def list_companies(skip: int = 0, limit: int = 100):
     """회사 목록을 조회합니다."""
     crud = CompanyCRUD()
     return await crud.get_all(skip=skip, limit=limit)
 
 
-@router.put("/companies/{company_id}", response_model=CompanyResponse)
+@router.put("/companies/{company_id}", response_model=CompanyResponse, dependencies=[Depends(require_super_admin)])
 async def update_company(company_id: UUID, company: CompanyUpdate):
     """회사 정보를 수정합니다."""
     crud = CompanyCRUD()
     return await crud.update(company_id, company.model_dump(exclude_unset=True))
 
 
-@router.delete("/companies/{company_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/companies/{company_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_super_admin)])
 async def delete_company(company_id: UUID):
     """회사를 삭제합니다."""
     crud = CompanyCRUD()
@@ -181,7 +206,7 @@ async def delete_company(company_id: UUID):
     return None
 
 
-@router.put("/companies/{company_id}/status", response_model=CompanyResponse)
+@router.put("/companies/{company_id}/status", response_model=CompanyResponse, dependencies=[Depends(require_super_admin)])
 async def update_company_status(company_id: UUID, status_update: CompanyStatusUpdate):
     """회사의 서비스 상태를 변경합니다."""
     crud = CompanyCRUD()
@@ -193,35 +218,35 @@ async def update_company_status(company_id: UUID, status_update: CompanyStatusUp
 
 
 # 직급 관리 API
-@router.post("/positions/", response_model=PositionResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/positions/", response_model=PositionResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_company_admin)])
 async def create_position(position: PositionCreate):
     """새로운 직급을 생성합니다."""
     crud = PositionCRUD()
     return await crud.create(position.model_dump())
 
 
-@router.get("/positions/{position_id}", response_model=PositionResponse)
+@router.get("/positions/{position_id}", response_model=PositionResponse, dependencies=[Depends(require_company_admin)])
 async def get_position(position_id: UUID):
     """특정 직급의 정보를 조회합니다."""
     crud = PositionCRUD()
     return await crud.get_by_id(position_id)
 
 
-@router.get("/positions/", response_model=List[PositionResponse])
+@router.get("/positions/", response_model=List[PositionResponse], dependencies=[Depends(require_company_admin)])
 async def list_positions(skip: int = 0, limit: int = 100):
     """직급 목록을 조회합니다."""
     crud = PositionCRUD()
     return await crud.get_all(skip=skip, limit=limit)
 
 
-@router.put("/positions/{position_id}", response_model=PositionResponse)
+@router.put("/positions/{position_id}", response_model=PositionResponse, dependencies=[Depends(require_company_admin)])
 async def update_position(position_id: UUID, position: PositionUpdate):
     """직급 정보를 수정합니다."""
     crud = PositionCRUD()
     return await crud.update(position_id, position.model_dump(exclude_unset=True))
 
 
-@router.delete("/positions/{position_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/positions/{position_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_company_admin)])
 async def delete_position(position_id: UUID):
     """직급을 삭제합니다."""
     crud = PositionCRUD()
