@@ -156,13 +156,13 @@ class UserCRUD:
             users_with_status = []
             for user, signup_completed_status, company_name, position_name, sysrole_name in results:
                 try:
-                    print(f"\n사용자 정보 변환 시작 ----------------")
-                    print(f"user_id: {user.user_id}")
-                    print(f"signup_completed_status 타입: {type(signup_completed_status)}")
-                    print(f"signup_completed_status 값: {signup_completed_status}")
+                    # # print(f"\n사용자 정보 변환 시작 ----------------")
+                    # print(f"user_id: {user.user_id}")
+                    # print(f"signup_completed_status 타입: {type(signup_completed_status)}")
+                    # print(f"signup_completed_status 값: {signup_completed_status}")
                     
                     status = "Pending" if signup_completed_status is None else signup_completed_status
-                    print(f"최종 status 값: {status}")
+                    # print(f"최종 status 값: {status}")
                     
                     user_dict = {
                         "user_id": str(user.user_id),
@@ -182,15 +182,15 @@ class UserCRUD:
                         "sysrole_name": sysrole_name
                     }
                     
-                    print(f"변환된 user_dict: {user_dict}")
-                    print("사용자 정보 변환 완료 ----------------\n")
+                    # print(f"변환된 user_dict: {user_dict}")
+                    # print("사용자 정보 변환 완료 ----------------\n")
                     
                     users_with_status.append(user_dict)
                 except Exception as e:
                     print(f"사용자 데이터 변환 중 오류 발생: {str(e)}, user_id: {user.user_id}")
                     continue
             
-            print(f"전체 변환된 데이터: {users_with_status}")
+            # print(f"전체 변환된 데이터: {users_with_status}")
             return users_with_status
             
         except Exception as e:
