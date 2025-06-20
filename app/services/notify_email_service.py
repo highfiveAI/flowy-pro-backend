@@ -4,6 +4,7 @@ from typing import List, Optional, Any
 from pydantic import SecretStr
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from datetime import datetime
 
 # 환경변수에서 값이 없을 때 기본값 처리 함수
 def getenv_str(key: str, default: str = "") -> str:
@@ -84,5 +85,40 @@ async def send_signup_email_to_admin(user_info, admin_emails):
     """
     await send_email(subject, admin_emails, body) 
 
+# 회의 분석 결과 수정시 참석자들에게 수정 알림 메일을 전송하는 함수
+async def send_meeting_update_email(meeting_info):
+    """
+    회의 분석 결과 수정 알림 메일 전송 함수
+    meeting_info: dict, info_n(참석자 리스트), dt(일시), subj(주제), update_dt(수정일시), meeting_id(회의 ID) 등
+    info_n만 있어도 최소 동작하도록 유연하게 처리
+    """
+    def format_datetime(dt_str):
+        try:
+            # ISO 포맷 처리
+            if 'T' in dt_str:
+                dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+                return dt.strftime('%Y-%m-%d %H:%M')
+            return dt_str
+        except Exception:
+            return dt_str
+
+    dt = format_datetime(meeting_info.get('dt', ''))
+    subj = meeting_info.get('subj', '')
+    update_dt = format_datetime(meeting_info.get('update_dt', ''))
+    meeting_id = meeting_info.get('meeting_id', '')
+    for participant in meeting_info["info_n"]:
+        name = participant.get("name", "")
+        email = participant.get("email", "")
+        subject = f"[FLOWY PRO] '{dt}' '{subj}' 분석 결과 (수정)"
+        body = f"""
+        안녕하세요, Flowy Pro 입니다.<br><br>
+        '{dt}'에 진행한 '{subj}'의 회의 분석 결과가 수정되었습니다.<br>
+        수정일시 : '{update_dt}'<br><br>
+        변경된 분석 결과는 아래 링크에서 확인하세요.<br>
+        <a href='http://localhost:5173/dashboard/{meeting_id}'>http://localhost:5173/dashboard/{meeting_id}</a><br><br>
+        감사합니다.<br>
+        Flowy pro
+        """
+        await send_email(subject, [email], body) 
 
     

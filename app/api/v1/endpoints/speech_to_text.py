@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Depends
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Depends, Body
 from fastapi import APIRouter
 from app.services.stt import stt_from_file
 from app.services.tagging import tag_chunks_async
@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.meeting import Meeting
 from app.services.calendar_service.calendar_crud import insert_meeting_calendar
+from app.services.notify_email_service import send_meeting_update_email
 
 router = APIRouter()
 
@@ -285,28 +286,12 @@ async def analyze_meeting_api(
         "meeting_id": meeting_id
     }
 
-# 프로젝트 회의 목록 조회
-# @router.get("/conferencelist/{project_id}")
-# async def get_conference_list(
-#     project_id: str,
-#     db: AsyncSession = Depends(get_db)
-# ):
-#     try:
-#         print(f"[DEBUG] project_id: {project_id}", flush=True)
-#         meetings = await get_project_meetings(db, project_id)
-#         print(f"[DEBUG] meetings: {meetings}", flush=True)
-#         meeting_list = [
-#             {
-#                 "meeting_id": str(m[0]),
-#                 "meeting_title": m[1],
-#                 "meeting_date": m[2]
-#             }
-#             for m in meetings
-#         ]
-#         print(f"[DEBUG] meeting_list: {meeting_list}", flush=True)
-#         return {"meetings": meeting_list}
-#     except Exception as e:
-#         import traceback
-#         print(f"[ERROR] 에러 발생: {e}", flush=True)
-#         traceback.print_exc()
-#         return {"error": str(e)}
+@router.post("/meeting/send-update-email")
+async def send_update_email_api(
+    data: dict = Body(...)
+):
+    # info_n, dt, subj, update_dt, meeting_id 등 프론트에서 넘긴 값 사용
+    await send_meeting_update_email(data)
+    return {"message": "메일 전송 완료"}
+
+
