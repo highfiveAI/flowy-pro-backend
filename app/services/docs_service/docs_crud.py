@@ -139,29 +139,47 @@ async def read_file_content(file: UploadFile) -> str:
         )
 
 async def extract_text_from_file(file: UploadFile) -> str:
-    """LLM을 이용해 파일 내용을 요약하는 함수"""
+    """파일명과 내용을 포함한 요약 생성 함수"""
     try:
         await file.seek(0)
         content = await read_file_content(file)
-        
+        filename = file.filename
+
+        prompt = f"""
+파일명: {filename}
+
+문서 내용:
+{content}
+
+위 문서는 어떤 목적이나 업무에 사용되는 문서인지 판단해서 아래 형식처럼 한 문장으로 요약해줘.
+
+예시: "프로젝트 기획안 작성을 위한 문서"
+조건:
+- 문서의 구성요소(예: 목적, 일정, 예산 등)를 기준으로 문서의 종류를 추론할 것
+- 문서 형식이나 스타일 설명은 제외
+- 구체적인 내용이 아니라, '무슨 목적으로 어떤 형식으로 작성된 문서'인지 설명할 것
+- 반드시 단문형 서술체로 요약할 것 (예: "프로젝트 기획안 작성을 위한 문서")
+"""
+
         response = await openai_client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o",
             messages=[
-                {"role": "system", "content": "주어진 문서의 전체적인 구조를 파악하여, 1~2문장 요약을 작성해줘. 예를 들어, '목차, 목표, 일정, 예산 등으로 구성된 프로젝트 기획안'과 같이, 문서의 구성 요소를 중심으로 문서 종류와 연결되는 자연스러운 문장으로 만들어 줘. 문서의 구체적 내용보다는 형식적·조직적 구성을 중심으로 정리해 줘. 문서 종류를 중심으로, 다른 설명 없이 요약해줘."},
-                {"role": "user", "content": content}
+                {"role": "system", "content": "당신은 문서 분석 전문가입니다. 문서의 제목과 내용을 바탕으로 문서의 용도와 종류를 한 문장으로 요약하세요."},
+                {"role": "user", "content": prompt.strip()}
             ],
             max_tokens=300,
             temperature=0.3
         )
-        
+
         summary = response.choices[0].message.content.strip()
         return summary
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail=f"문서 요약 실패: {str(e)}"
         )
+
 
 async def create_document(
     db: AsyncSession,
