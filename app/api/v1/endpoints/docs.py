@@ -48,7 +48,7 @@ class DocumentResponse(BaseModel):
     class Config:
         from_attributes = True
 
-@router.post("/recommend", response_model=Dict[str, Any])
+@router.post("/recommend", response_model=Dict[str, Any], dependencies=[Depends(require_company_admin)])
 async def recommend_documents_route(request: DocumentRecommendRequest):
     """
     역할 또는 업무 내용을 기반으로 관련 문서를 추천합니다.
