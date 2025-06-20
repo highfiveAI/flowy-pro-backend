@@ -21,9 +21,7 @@ from sqlalchemy import select
 from app.services.docs_service.draft_log_crud import get_draft_logs_by_meeting_id
 from app.schemas.meeting import DraftLogResponse
 
-router = APIRouter(
-    dependencies=[Depends(require_company_admin)]
-)
+router = APIRouter()
 
 # 요청/응답 모델
 class DocumentRecommendRequest(BaseModel):
@@ -101,7 +99,7 @@ async def update_existing_document(
     """
     return await update_document(db, doc_id, file, update_user_id) # db 객체 전달
 
-@router.get("/", response_model=List[DocumentResponse])
+@router.get("/", response_model=List[DocumentResponse], dependencies=[Depends(require_company_admin)])
 async def get_all_documents(
     skip: int = 0,
     limit: int = 10,
