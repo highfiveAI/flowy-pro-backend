@@ -133,15 +133,8 @@ async def recommend_documents(role_text: str, k: int = 1) -> dict:
     print(f"[recommend_documents] 문서 추천 실행: {role_text}")
     
     try:
-        # 툴 오용 방지: 파일명으로 검색하는 경우 차단
-        if role_text.endswith(".hwp") or role_text.endswith(".docx") or role_text.endswith(".pdf"):
-            return {
-                "documents": [],
-                "error": f"'{role_text}'는 파일명처럼 보입니다. 역할이나 업무 내용으로 입력해주세요."
-            }
-
         # LLM을 사용하여 더 나은 추천을 위한 프롬프트 생성
-        llm = ChatOpenAI(model="gpt-4", temperature=0)
+        llm = ChatOpenAI(model="gpt-4o", temperature=0)
         
         # 문서 검색
         docs = await direct_vector_search(role_text, k=k)
@@ -179,6 +172,7 @@ async def recommend_documents(role_text: str, k: int = 1) -> dict:
     {{
       "title": "문서 제목",
       "download_url": "다운로드 URL",
+      "similarity_score": "유사도 점수",
       "relevance_reason": "이 문서가 추천되는 이유 (한 문장으로 간단히)"
     }}
   ]
@@ -220,6 +214,7 @@ async def recommend_documents(role_text: str, k: int = 1) -> dict:
             final_documents.append({
                 "title": doc['interdocs_filename'],
                 "download_url": download_url,
+                "similarity_score": doc['similarity_score'],
                 "relevance_reason": llm_doc.get("relevance_reason", "관련성 높은 문서") if llm_doc else "관련성 높은 문서"
             })
         
