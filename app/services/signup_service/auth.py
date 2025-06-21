@@ -22,8 +22,12 @@ async def verify_token(token: str):
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username = payload.get("sub")
         if username is None:
-            raise ValueError("Invalid token")
+            raise ValueError("Invalid token: no subject (sub) found")
         return username
+
+    except ExpiredSignatureError:
+        raise ValueError("Token has expired")
+
     except JWTError:
         raise ValueError("Could not validate token")
 
@@ -31,7 +35,11 @@ async def verify_access_token(token: str) -> TokenPayload:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return TokenPayload(**payload)
-    except (JWTError, ValueError):
+    
+    except ExpiredSignatureError:
+        raise ValueError("Token has expired")
+
+    except JWTError:
         raise ValueError("Could not validate token")
 
 async def check_access_token(request: Request):
