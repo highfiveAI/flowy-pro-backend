@@ -33,6 +33,16 @@ class SummaryLogCreate(BaseModel):
     meeting_id: UUID
     updated_summary_contents: Dict[str, List[str]]
 
+class ProjectUserUpdate(BaseModel):
+    user_id: UUID
+    role_id: UUID
+
+class ProjectUpdateRequestBody(BaseModel):
+    project_id: UUID
+    project_name: str
+    project_detail: str
+    project_users: List[ProjectUserUpdate]
+
     class Config:
         orm_mode = True
 

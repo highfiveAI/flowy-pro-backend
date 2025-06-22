@@ -1,5 +1,6 @@
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import select
+from sqlalchemy import select, asc
 from app.models import FlowyUser, SignupLog, ProjectUser, Project, Role
 from app.schemas.signup_info import UserCreate, TokenPayload
 from app.schemas.mypage import UserUpdateRequest, UserWithCompanyInfo
@@ -62,15 +63,42 @@ async def get_company_admin_emails(db: AsyncSession, company_id: str, sysrole_id
 
 async def authenticate_user(db: AsyncSession, login_id: str, password: str):
     stmt = select(FlowyUser).where(FlowyUser.user_login_id == login_id)
-
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
-    if not user:
+    if not user or not verify_password(password, user.user_password):
         return None
-    if not verify_password(password, user.user_password):
-        return None
+
+    # 여기서 상태 체크 추가
+    await get_signup_status_or_raise(db, user.user_id)
+
     return user
+
+async def get_signup_status_or_raise(db: AsyncSession, user_id: UUID) -> str:
+    stmt = (
+        select(SignupLog)
+        .where(SignupLog.signup_request_user_id == user_id)
+        .order_by(asc(SignupLog.signup_status_changed_date))
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    signup_log = result.scalars().first()
+
+    if not signup_log:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="회원가입 로그를 찾을 수 없습니다."
+        )
+
+    status_value = signup_log.signup_completed_status.lower()
+
+    if status_value in ["pending", "rejected"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"회원가입 상태가 '{signup_log.signup_completed_status}'입니다."
+        )
+
+    return signup_log.signup_completed_status
 
 
 async def only_authenticate_email(db: AsyncSession, email: str):

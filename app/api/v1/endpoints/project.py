@@ -3,9 +3,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.db_session import get_db_session
 from app.crud.crud_user import get_all_users
 from app.schemas.signup_info import TokenPayload
-from app.schemas.project import ProjectCreate, ProjectNameUpdate, TaskAssignLogCreate, SummaryLogCreate
+from app.schemas.project import ProjectCreate, ProjectNameUpdate, TaskAssignLogCreate, SummaryLogCreate, ProjectUpdateRequestBody
 from app.services.signup_service.auth import check_access_token
-from app.crud.crud_project import get_project_users_with_projects_by_user_id, get_meetings_with_users_by_project_id, create_project, get_meeting_detail_with_project_and_users, delete_project_by_id, update_project_name_by_id, insert_task_assign_log, insert_summary_log
+from app.crud.crud_project import get_project_users_with_projects_by_user_id, get_meetings_with_users_by_project_id, create_project, get_meeting_detail_with_project_and_users, delete_project_by_id, update_project_name_by_id, insert_task_assign_log, insert_summary_log, update_project_with_users
 from uuid import UUID
 import traceback
 from fastapi.responses import JSONResponse
@@ -96,3 +96,20 @@ async def create_summary_log(
     if not success:
         raise HTTPException(status_code=500, detail="Failed to create task assign log")
     return {"message": "Task assign log created successfully"}
+
+@router.put("/update_project_with_users/{project_id}")
+async def update_project(
+    project_id: UUID,
+    body: ProjectUpdateRequestBody,
+    db: AsyncSession = Depends(get_db_session),
+):
+    success = await update_project_with_users(
+        db=db,
+        project_id=project_id,
+        project_name=body.project_name,
+        project_detail=body.project_detail,
+        new_users=body.project_users,
+    )
+    if not success:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"message": "Project updated"}
