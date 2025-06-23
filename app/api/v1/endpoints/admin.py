@@ -10,6 +10,7 @@ from app.services.admin_service.user_crud import UserCRUD
 from app.services.admin_service.company_crud import CompanyCRUD
 from app.services.admin_service.position_crud import PositionCRUD
 from app.services.admin_service.admin_check import require_company_admin, require_super_admin, require_any_admin
+from app.services.notify_email_service import send_user_status_change_email
 
 
 # 사용자 관련 Pydantic 모델
@@ -83,6 +84,7 @@ class PositionBase(BaseModel):
     position_code: str
     position_name: str
     position_detail: str | None = None
+    position_company_id: UUID
 
 
 class PositionCreate(PositionBase):
@@ -164,7 +166,20 @@ async def delete_user(user_id: UUID):
 async def update_user_status(user_id: UUID, status_update: UserStatusUpdate):
     """사용자의 승인 상태를 변경합니다."""
     crud = UserCRUD()
-    return await crud.update_user_status(user_id, status_update.status)
+    # 1. 사용자 정보 조회
+    user = await crud.get_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user_name = user["user_name"]
+    user_email = user["user_email"]
+
+    # 2. 상태 변경
+    updated_user = await crud.update_user_status(user_id, status_update.status)
+
+    # 3. 메일 발송
+    await send_user_status_change_email(user_name, user_email, status_update.status)
+
+    return updated_user
 
 
 @router.get("/users/company/{company_id}")
