@@ -83,24 +83,7 @@ async def create_task_assign_log(
     )
     if not success:
         raise HTTPException(status_code=500, detail="Failed to create task assign log")
-
-    # 캘린더 동기화
-    calendar_result = await update_calendar_from_todos(
-        db=db,
-        meeting_id=log_data.meeting_id,
-        updated_task_assign_contents=log_data.updated_task_assign_contents
-    )
-    return {
-        "message": "Task assign log created and calendar synced successfully",
-        "calendar_result": [
-            {
-                "user_id": str(c.user_id),
-                "title": c.title,
-                "start": c.start.isoformat() if c.start else None,
-                "end": c.end.isoformat() if c.end else None
-            } for c in calendar_result
-        ]
-    }
+    return {"message": "Task assign log created successfully"}
 
 @router.post("/update_summary")
 async def create_summary_log(
@@ -125,6 +108,12 @@ async def create_summary_and_task(
         db,
         meeting_id=data.meeting_id,
         updated_summary_contents=data.updated_summary_contents,
+        updated_task_assign_contents=data.updated_task_assign_contents
+    )
+    
+    calendar_result = await update_calendar_from_todos(
+        db=db,
+        meeting_id=data.meeting_id,
         updated_task_assign_contents=data.updated_task_assign_contents
     )
 

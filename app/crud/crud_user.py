@@ -158,12 +158,15 @@ async def update_user_info(user_id: str, user_update: UserUpdateRequest, session
         raise HTTPException(status_code=404, detail="User not found")
 
     update_data = user_update.dict(exclude_unset=True)
+    # print("[DEBUG] update_data before hash:", update_data)
 
     if "user_password" in update_data and update_data["user_password"]:
         update_data["user_password"] = pwd_context.hash(update_data["user_password"])
+        # print("[DEBUG] hashed user_password:", update_data["user_password"])
 
-
-    for key, value in user_update.dict(exclude_unset=True).items():
+    # update_data를 사용해서 DB에 저장
+    for key, value in update_data.items():
+        # print(f"[DEBUG] setattr: {key} = {value}")
         setattr(user, key, value)
 
     await session.commit()
