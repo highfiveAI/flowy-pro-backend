@@ -125,6 +125,12 @@ async def update_user_info(user_id: str, user_update: UserUpdateRequest, session
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    update_data = user_update.dict(exclude_unset=True)
+
+    if "user_password" in update_data and update_data["user_password"]:
+        update_data["user_password"] = pwd_context.hash(update_data["user_password"])
+
+
     for key, value in user_update.dict(exclude_unset=True).items():
         setattr(user, key, value)
 
@@ -134,8 +140,6 @@ async def update_user_info(user_id: str, user_update: UserUpdateRequest, session
     return {
         "user_id": str(user.user_id),
         "user_name": user.user_name,
-        "user_team_name": user.user_team_name,
-        "user_dept_name": user.user_dept_name,
         "user_phonenum": user.user_phonenum
     }
 
