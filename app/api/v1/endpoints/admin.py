@@ -83,6 +83,7 @@ class PositionBase(BaseModel):
     position_code: str
     position_name: str
     position_detail: str | None = None
+    position_company_id: UUID
 
 
 class PositionCreate(PositionBase):
