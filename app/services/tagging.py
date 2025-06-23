@@ -171,17 +171,27 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
                     print(f"Unknown feedbacktype_name: {feedbacktype_name}", flush=True)
         else:
             await insert_feedback_log(db, feedback_result, '', meeting_id)
-        # 모든 피드백 저장이 끝난 후 이메일 전송 (참석자 전원에게)
+        # 모든 피드백 저장이 끝난 후 이메일 전송 (회의장에게만)
+        host = None
         if attendees_list:
+            for person in attendees_list:
+                if person.get("is_host") == True:
+                    host = {
+                        "name": person.get("name"),
+                        "email": person.get("email"),
+                        "role": person.get("role", "host")
+                    }
+                    break
+        if host is not None:
             meeting_info = {
-                "info_n": attendees_list,
+                "info_n": [host],
                 "dt": meeting_date,
                 "subj": subject,
                 "meeting_id": meeting_id
             }
             await send_meeting_email(meeting_info)
         else:
-            print("참석자 정보가 없습니다.")
+            print("회의장(Host) 정보가 없습니다.")
 
     # # 프롬프트 로그 저장용 에이전트 유형 매핑 함수 및 insert 함수
     # def get_agent_type_map():

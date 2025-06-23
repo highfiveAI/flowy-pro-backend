@@ -121,4 +121,40 @@ async def send_meeting_update_email(meeting_info):
         """
         await send_email(subject, [email], body) 
 
+# 사용자 상태 변경 알림 메일 전송 함수
+async def send_user_status_change_email(user_name: str, user_email: str, status: str):
+    """
+    사용자 상태 변경 알림 메일 전송 함수
+    user_name: 사용자 이름
+    user_email: 사용자 이메일
+    status: 변경된 상태 (예: Approved, Rejected 등)
+    """
+    subject = f"[FLOWY PRO] 회원 상태 변경 안내"
+    if status == "Approved":
+        body = f"""
+        안녕하세요, {user_name}님.<br><br>
+        신규 회원가입 요청이 승인되었습니다.<br><br>
+        <a href='http://www.flowyproapi.com/'>www.flowyproapi.com</a><br><br>
+        감사합니다.<br>
+        Flowy pro 드림
+        """
+    elif status == "Rejected":
+        body = f"""
+        안녕하세요, {user_name}님.<br><br>
+        신규 회원가입 요청이 거절되었습니다.<br>
+        거절 사유는 담당자를 통해 확인 부탁 드립니다.<br><br>
+        <a href='http://www.flowyproapi.com/'>www.flowyproapi.com</a><br><br>
+        감사합니다.<br>
+        Flowy pro 드림
+        """
+    else:
+        body = f"""
+        안녕하세요, {user_name}님.<br><br>
+        신규 회원가입 요청이 '{status}'되었습니다.<br><br>
+        <a href='http://www.flowyproapi.com/'>www.flowyproapi.com</a><br><br>
+        감사합니다.<br>
+        Flowy pro 드림
+        """
+    await send_email(subject, [user_email], body)
+
     
