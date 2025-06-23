@@ -8,18 +8,21 @@ from app.schemas.project import UserSchema, RoleSchema
 from app.core.security import verify_password
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Optional
 from uuid import UUID
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+now = datetime.now(ZoneInfo("Asia/Seoul")).replace(tzinfo=None)
 
 
 async def create_user(db: AsyncSession, user: UserCreate):
     hashed_password = (
         pwd_context.hash(user.password)
     )
-
+    
 
     db_user = FlowyUser(
         user_name=user.name,
@@ -42,6 +45,7 @@ async def create_user(db: AsyncSession, user: UserCreate):
     log = SignupLog(
         signup_request_user_id=db_user.user_id,
         signup_update_user_id=db_user.user_id,
+        signup_status_changed_date=now,
         signup_completed_status="Pending"
     )
     db.add(log)

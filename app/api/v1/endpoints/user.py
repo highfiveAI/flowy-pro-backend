@@ -195,7 +195,11 @@ async def google_callback(request: Request, response: Response, db: AsyncSession
     name = user_info.get("name")
 
     auth_user = await only_authenticate_email(db, email)
-
+    raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="회원가입 로그를 찾을 수 없습니다."
+        )
+        
     if not auth_user:
         signup_token = await create_access_token(
         data={"sub": name,
