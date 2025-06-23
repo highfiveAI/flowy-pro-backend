@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr, UUID4
 
 # 엑세스 토큰
 class TokenPayload(BaseModel):
+    sub: str
     id: str
     name: str
     email: str

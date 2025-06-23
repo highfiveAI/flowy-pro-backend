@@ -11,15 +11,13 @@ from app.schemas.mypage import UserUpdateRequest, UserWithCompanyInfo
 from app.crud.crud_user import create_user, authenticate_user, only_authenticate_email, get_projects_for_user, update_user_info, get_mypage_user, get_company_admin_emails
 from app.crud.crud_company import get_signup_meta
 from app.db.db_session import get_db_session
-from app.services.signup_service.auth import create_access_token, verify_token, verify_access_token
+from app.services.signup_service.auth import create_access_token, verify_token, verify_access_token, check_access_token
 from app.services.signup_service.google_auth import oauth
-from jose import jwt, JWTError
+from jose import jwt, JWTError, ExpiredSignatureError
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
-
-
-
 import json
+
 
 # 환경변수
 BACKEND_URI = settings.BACKEND_URI
@@ -105,6 +103,7 @@ async def login(user: LoginInfo, response: Response, db: AsyncSession = Depends(
     print("사용자 권한 : ", auth_user.user_sysrole_id)
 
     payload = TokenPayload(
+        sub=str(auth_user.user_id),
         id=str(auth_user.user_id),
         name=auth_user.user_name,
         email=auth_user.user_email,
@@ -165,17 +164,8 @@ async def read_me(token: str = Depends(oauth2_scheme)):
 # 유저 체크
 @router.get("/auth/check")
 async def auth_check(request: Request):
-    token = request.cookies.get("access_token")
-    if not token:
-        raise HTTPException(status_code=401, detail="인증 실패")
-    try:
-        user: TokenPayload = await verify_access_token(token)
-    except ValueError:
-        raise HTTPException(status_code=401, detail="인증 실패")
-
+    user = await check_access_token(request)
     user_dict = json.loads(user.json())
-
-
     return JSONResponse(content={"authenticated": True, "user": user_dict})
 
 #  구글 로그인
@@ -226,6 +216,7 @@ async def google_callback(request: Request, response: Response, db: AsyncSession
         return redirect_response
 
     payload = TokenPayload(
+        sub=str(auth_user.user_id),
         id=str(auth_user.user_id),
         name=auth_user.user_name,
         email=auth_user.user_email,
@@ -272,20 +263,15 @@ async def read_company_names(db: AsyncSession = Depends(get_db_session)):
 
 # 마이페이지 유저의 정보 get
 @router.get("/one")
-async def read_one_user(request: Request, db: AsyncSession = Depends(get_db_session), response_model=UserWithCompanyInfo):
+async def read_one_user(
+    request: Request,
+    token_user = Depends(check_access_token),
+    db: AsyncSession = Depends(get_db_session),
+    response_model=UserWithCompanyInfo):
 
-    token = request.cookies.get("access_token")
-    if not token:
-        raise HTTPException(status_code=401, detail="인증 실패")
-
-    try:
-        user: TokenPayload = await verify_access_token(token)
-    except ValueError:
-        raise HTTPException(status_code=401, detail="인증 실패")
-
-    user_dict = json.loads(user.json())
+    user_dict = json.loads(token_user.json())
     print(user_dict)
-    user_info = await get_mypage_user(db, user.email)
+    user_info = await get_mypage_user(db, token_user.email)
     if user_info is None:
         raise HTTPException(status_code=404, detail="User not found")
     return user_info
@@ -293,20 +279,13 @@ async def read_one_user(request: Request, db: AsyncSession = Depends(get_db_sess
 # 마이페이지 유저 정보 업데이트 라우터
 @router.put("/update")
 async def update_user(
-    request: Request,
+    # request: Request,
     user_update: UserUpdateRequest,
+    token_user = Depends(check_access_token),
     session: AsyncSession = Depends(get_db_session)
 ):
-    token = request.cookies.get("access_token")
-    if not token:
-        raise HTTPException(status_code=401, detail="인증 실패")
 
-    try:
-        user: TokenPayload = await verify_access_token(token)
-    except ValueError:
-        raise HTTPException(status_code=401, detail="인증 실패")
-
-    user_data = await update_user_info(user.id, user_update, session)
+    user_data = await update_user_info(token_user.id, user_update, session)
     return {
         "message": "User updated successfully",
         "user": user_data
@@ -317,17 +296,9 @@ async def update_user(
 async def mypage_check(
     request: Request,
     userInfo: LoginInfo,
+    token_user = Depends(check_access_token),
     db: AsyncSession = Depends(get_db_session)
  ):
-    token = request.cookies.get("access_token")
-    if not token:
-        raise HTTPException(status_code=401, detail="인증 실패")
-
-    try:
-        user: TokenPayload = await verify_access_token(token)
-    except ValueError:
-        raise HTTPException(status_code=401, detail="인증 실패")
-
     auth_user = await authenticate_user(db, userInfo.login_id, userInfo.password)
     
     if not auth_user:
