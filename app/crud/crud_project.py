@@ -224,6 +224,34 @@ async def insert_summary_log(
         # 필요시 로그 출력 or 예외 처리
         return False
 
+async def insert_summary_and_task_logs(
+    db: AsyncSession,
+    meeting_id: UUID,
+    updated_summary_contents: dict,
+    updated_task_assign_contents: dict
+) -> bool:
+    now = datetime.now(ZoneInfo("Asia/Seoul")).replace(tzinfo=None)
+
+    summary_log = SummaryLog(
+        meeting_id=meeting_id,
+        updated_summary_contents=updated_summary_contents,
+        updated_summary_date=now
+    )
+
+    task_log = TaskAssignLog(
+        meeting_id=meeting_id,
+        updated_task_assign_contents=updated_task_assign_contents,
+        updated_task_assign_date=now
+    )
+
+    try:
+        async with db.begin():  # 트랜잭션 시작
+            db.add_all([summary_log, task_log])
+        return True
+    except Exception as e:
+        await db.rollback()
+        return False
+
 async def update_project_with_users(
     db: AsyncSession,
     project_id: UUID,
