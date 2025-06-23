@@ -146,7 +146,7 @@ async def send_meeting_update_email(meeting_info):
                 tasks_html += f"• <b>업무 {idx}:</b> {action} <b>/ 완료 기한:</b> {schedule}<br>"
                 tasks_html += f"📅 일정 등록을 원하시면 <a href='{gcal_url}'>Google Calendar에 바로 추가</a>하세요.<br>"
         else:
-            tasks_html = "-"
+            tasks_html = f"이번 회의에서는 {name}님께 별도의 역할이 지정되지 않았습니다.<br>필요 시 회의 내용을 참고하시거나 관련자에게 문의해주세요.<br><br>"
         subject = f"[FLOWY PRO] '{dt}' '{subj}' 분석 결과 (수정)"
         body = f"""
         안녕하세요, {name}님  <br>
