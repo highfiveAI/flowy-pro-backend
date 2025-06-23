@@ -195,7 +195,7 @@ async def google_callback(request: Request, response: Response, db: AsyncSession
     name = user_info.get("name")
 
     auth_user = await only_authenticate_email(db, email)
-
+    
     if not auth_user:
         signup_token = await create_access_token(
         data={"sub": name,
