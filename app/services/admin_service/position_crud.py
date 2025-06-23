@@ -43,8 +43,7 @@ class PositionCRUD:
                     detail="이미 등록된 직급 코드입니다."
                 )
 
-            # position_company_id 기본값 설정
-            position_data["position_company_id"] = self.default_company_id
+            print(f"position_data: {position_data}")
 
             position = CompanyPosition(**position_data)
             self.db.add(position)
