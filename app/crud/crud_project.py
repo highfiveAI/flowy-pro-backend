@@ -106,6 +106,12 @@ async def get_meeting_detail_with_project_and_users(
 
     # ✅ 최신 summary_log 1개 따로 쿼리
     if meeting:
+        # meeting.project_id로 ProjectUser 목록 조회
+        project_users_stmt = select(ProjectUser).where(ProjectUser.project_id == meeting.project_id).options(selectinload(ProjectUser.user))
+        project_users_result = await db.execute(project_users_stmt)
+        project_users = project_users_result.scalars().all()
+        setattr(meeting, "project_users", project_users)
+
         summary_stmt = (
             select(SummaryLog)
             .where(SummaryLog.meeting_id == meeting_id)

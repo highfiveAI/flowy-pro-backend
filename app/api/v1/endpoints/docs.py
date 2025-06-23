@@ -1,12 +1,12 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends # Form, Depends 임포트 추가
 from pydantic import BaseModel
-from typing import List, Optional, Annotated # Annotated 임포트 추가
+from typing import List, Optional, Annotated, Any, Dict # Any, Dict 임포트 추가
 from uuid import UUID
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.db_session import get_db_session
 from app.models.interdoc import Interdoc
-from app.services.docs_service.docs_recommend import run_doc_recommendation, recommend_documents, get_document_download_link
+from app.services.docs_service.docs_recommend import run_doc_recommendation, get_document_download_link
 from app.services.docs_service.docs_crud import (
     create_document,
     update_document,
@@ -21,25 +21,19 @@ from sqlalchemy import select
 from app.services.docs_service.draft_log_crud import get_draft_logs_by_meeting_id
 from app.schemas.meeting import DraftLogResponse
 
-router = APIRouter(
-    # dependencies=[Depends(require_company_admin)]
-)
+router = APIRouter()
 
 # 요청/응답 모델
 class DocumentRecommendRequest(BaseModel):
     query: str
 
 class Document(BaseModel):
-    id: str
     title: str
-    similarity: float
-    preview: str
-    download_url: Optional[str]
+    download_url: str
+    relevance_reason: str
 
 class DocumentRecommendResponse(BaseModel):
-    success: bool
-    message: Optional[str] = None
-    documents: List[Document] = []
+    documents: List[Document]
 
 class DocumentResponse(BaseModel):
     interdocs_id: UUID
@@ -54,25 +48,16 @@ class DocumentResponse(BaseModel):
     class Config:
         from_attributes = True
 
-@router.post("/recommend", response_model=DocumentRecommendResponse)
-async def recommend_documents(request: DocumentRecommendRequest):
+@router.post("/recommend", response_model=Dict[str, Any], dependencies=[Depends(require_company_admin)])
+async def recommend_documents_route(request: DocumentRecommendRequest):
     """
     역할 또는 업무 내용을 기반으로 관련 문서를 추천합니다.
-    
     - **query**: 검색할 역할 또는 업무 내용
     """
     try:
-        result = await recommend_docs_from_role(request.query)
-
-        if isinstance(result, str):
-            return DocumentRecommendResponse(success=False, message=result)
-        
-        doc_objs = [Document(**doc) for doc in result]
-
-        if not doc_objs:
-            return DocumentRecommendResponse(success=True, message="추천할 문서를 찾지 못했습니다.", documents=[])
-
-        return DocumentRecommendResponse(success=True, documents=doc_objs)
+        # 서비스 함수 직접 호출
+        result = await run_doc_recommendation(request.query)
+        return result
         
     except Exception as e:
         raise HTTPException(
@@ -114,7 +99,7 @@ async def update_existing_document(
     """
     return await update_document(db, doc_id, file, update_user_id) # db 객체 전달
 
-@router.get("/", response_model=List[DocumentResponse])
+@router.get("/", response_model=List[DocumentResponse], dependencies=[Depends(require_company_admin)])
 async def get_all_documents(
     skip: int = 0,
     limit: int = 10,
@@ -167,7 +152,7 @@ async def get_doc_download_link(interdocs_id: UUID, db: AsyncSession = Depends(g
     link = await get_document_download_link(interdocs_path)
     return {"download_url": link}
 
-@router.get("/draft/{meeting_id}", response_model=List[DraftLogResponse])
+@router.get("/draft-logs/by-meeting/{meeting_id}", response_model=List[DraftLogResponse])
 async def get_draft_logs_by_meeting(
     meeting_id: str,
     db: AsyncSession = Depends(get_db_session)
