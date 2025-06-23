@@ -12,6 +12,7 @@ from app.crud.crud_meeting import insert_summary_log, insert_task_assign_log, in
 from sqlalchemy.orm import Session
 from app.services.notify_email_service import send_meeting_email
 from openai import AsyncOpenAI
+from app.services.calendar_service.calendar_crud import insert_calendar_from_task
 
 openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -158,8 +159,19 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
     if db is not None:
         # print(f"[tagging.py] insert_summary_log 호출: summary_result={summary_result}", flush=True)
         await insert_summary_log(db, summary_result["summary"] if isinstance(summary_result, dict) and "summary" in summary_result else summary_result, meeting_id)
+        
         # print(f"[tagging.py] insert_task_assign_log 호출: assigned_roles={assigned_roles}", flush=True)
-        await insert_task_assign_log(db, assigned_roles or {}, meeting_id)
+        task_assign_log = await insert_task_assign_log(db, assigned_roles or {}, meeting_id)
+        if hasattr(task_assign_log, '__dict__'):
+            print(f"[tagging.py] insert_task_assign_log 결과: {task_assign_log.__dict__}", flush=True)
+        else:
+            print(f"[tagging.py] insert_task_assign_log 결과: {task_assign_log}", flush=True)
+        print(f"[tagging.py] updated_task_assign_contents: {getattr(task_assign_log, 'updated_task_assign_contents', None)}", flush=True)
+        
+        # 캘린더 insert
+        calendar_log = await insert_calendar_from_task(db, task_assign_log)
+        print(f"[tagging.py] insert_calendar_from_task 결과: {calendar_log}", flush=True)
+
         # 피드백 유형 매핑 및 저장
         feedback_type_map = await get_feedback_type_map(db)
         if isinstance(feedback_result, dict):
