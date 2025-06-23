@@ -149,6 +149,8 @@ async def insert_calendar_from_task(db: AsyncSession, task_assign_log: TaskAssig
         schedule_str = todo.get("schedule")
         start_date = None
         end_date = None
+        
+        print(f"[insert_calendar_from_task] schedule_str: {schedule_str}", flush=True)
 
         # '언급 없음'이 아닌 경우 날짜를 파싱합니다.
         if schedule_str and schedule_str != "언급 없음":
@@ -158,6 +160,8 @@ async def insert_calendar_from_task(db: AsyncSession, task_assign_log: TaskAssig
                 year, month, day = map(int, date_match.groups())
                 start_date = datetime(year, month, day)
                 end_date = datetime(year, month, day)
+        else:
+            start_date = datetime.now()
         
         # 14. 새로운 Calendar 객체를 생성합니다.
         new_entry = Calendar(
@@ -242,6 +246,9 @@ async def update_calendar_from_todos(db: AsyncSession, meeting_id: UUID, updated
                 year, month, day = map(int, date_match.groups())
                 start_date = datetime(year, month, day)
                 end_date = datetime(year, month, day)
+        else:
+            start_date = datetime.now()
+
         # 기존 동일 일정이 있는지 확인
         found = None
         for cal in existing_calendars:
