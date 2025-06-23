@@ -1,10 +1,13 @@
 import os
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
-from typing import List, Optional, Any
+from fastapi import HTTPException, status
+from typing import List, Optional, Any, Tuple
 from pydantic import SecretStr
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from datetime import datetime
+import random
+import string
 
 # 환경변수에서 값이 없을 때 기본값 처리 함수
 def getenv_str(key: str, default: str = "") -> str:
@@ -156,5 +159,42 @@ async def send_user_status_change_email(user_name: str, user_email: str, status:
         Flowy pro 드림
         """
     await send_email(subject, [user_email], body)
+
+# 한동길 : 아이디 찾기에서 사용하는 이메일 인증 함수
+async def send_verification_code(email: str) -> str:
+    """
+    인증 코드를 생성하고 이메일로 전송하며, 생성된 코드를 반환합니다.
+    예외 발생 시 HTTPException 반환.
+    """
+    try:
+        # 6자리 숫자 코드 생성
+        code = ''.join(random.choices(string.digits, k=6))
+
+        subject = "이메일 인증 코드"
+        body = f"""
+        <html>
+          <body>
+            <p>안녕하세요,</p>
+            <p>아래 인증 코드를 입력해주세요:</p>
+            <h2>{code}</h2>
+            <p>본 인증 코드는 10분 동안 유효합니다.</p>
+          </body>
+        </html>
+        """
+
+        await send_email(
+            subject=subject,
+            recipients=[email],
+            body=body,
+            subtype="html"
+        )
+
+        return code
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"이메일 전송 중 오류가 발생했습니다: {str(e)}"
+        )
 
     

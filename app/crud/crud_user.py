@@ -243,3 +243,9 @@ async def get_all_users(token_user: TokenPayload, db: AsyncSession) -> list[User
         "roles": roles,
     }
 
+async def find_id_from_email(db: AsyncSession, email: str):
+    stmt = select(FlowyUser.user_login_id).where(FlowyUser.user_email == email)
+    result = await db.execute(stmt)
+    user_login_id = result.scalar_one_or_none()
+
+    return user_login_id
