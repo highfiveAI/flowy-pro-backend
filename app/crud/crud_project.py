@@ -7,6 +7,7 @@ from sqlalchemy.sql import label
 from uuid import UUID
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from typing import List, Dict
 import uuid
 
 feedbacktype_ids = [
@@ -228,3 +229,76 @@ async def insert_summary_log(
         await db.rollback()
         # 필요시 로그 출력 or 예외 처리
         return False
+
+async def insert_summary_and_task_logs(
+    db: AsyncSession,
+    meeting_id: UUID,
+    updated_summary_contents: dict,
+    updated_task_assign_contents: dict
+) -> bool:
+    now = datetime.now(ZoneInfo("Asia/Seoul")).replace(tzinfo=None)
+
+    summary_log = SummaryLog(
+        meeting_id=meeting_id,
+        updated_summary_contents=updated_summary_contents,
+        updated_summary_date=now
+    )
+
+    task_log = TaskAssignLog(
+        meeting_id=meeting_id,
+        updated_task_assign_contents=updated_task_assign_contents,
+        updated_task_assign_date=now
+    )
+
+    try:
+        async with db.begin():  # 트랜잭션 시작
+            db.add_all([summary_log, task_log])
+        return True
+    except Exception as e:
+        await db.rollback()
+        return False
+
+async def update_project_with_users(
+    db: AsyncSession,
+    project_id: UUID,
+    project_name: str,
+    project_detail: str,
+    new_users: List[Dict[str, UUID]],  # [{user_id, role_id}]
+) -> bool:
+    result = await db.execute(select(Project).where(Project.project_id == project_id))
+    project = result.scalars().first()
+    if not project:
+        return False
+
+    project.project_name = project_name
+    project.project_detail = project_detail
+
+    result = await db.execute(
+        select(ProjectUser).where(ProjectUser.project_id == project_id)
+    )
+    existing_users = result.scalars().all()
+
+    existing_map = {str(u.user_id): u for u in existing_users}
+    new_map = {str(u.user_id): u.role_id for u in new_users}
+
+    # 삭제할 사용자
+    for user_id_str in list(existing_map.keys()):
+        if user_id_str not in new_map:
+            db.delete(existing_map[user_id_str])
+
+    # 추가 또는 수정할 사용자
+    for user_id_str, new_role_id in new_map.items():
+        if user_id_str not in existing_map:
+            new_project_user = ProjectUser(
+                project_id=project_id,
+                user_id=UUID(user_id_str),
+                role_id=new_role_id,
+            )
+            db.add(new_project_user)
+        else:
+            existing_user = existing_map[user_id_str]
+            if existing_user.role_id != new_role_id:
+                existing_user.role_id = new_role_id
+
+    await db.commit()
+    return True
