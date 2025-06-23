@@ -1,18 +1,15 @@
 import os
 from dotenv import load_dotenv
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import PGVector
 from langchain_openai import ChatOpenAI
-from langchain.agents import Tool, AgentType, initialize_agent
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.tools import tool
-from langchain_core.messages import HumanMessage, SystemMessage
 from app.core.config import settings
 import aiopg
+import json
 from contextlib import asynccontextmanager
 import aioboto3
 from botocore.exceptions import ClientError
-
+import re
+from typing import List, Dict, Any
 
 # .env 파일 로드
 load_dotenv()
@@ -44,8 +41,6 @@ DB_CONFIG = {
     "password": settings.POSTGRES_PASSWORD
 }
 
-CONNECTION_STRING = f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
-
 @asynccontextmanager
 async def get_db_connection():
     """데이터베이스 연결을 관리하는 컨텍스트 매니저"""
@@ -53,22 +48,10 @@ async def get_db_connection():
         async with pool.acquire() as conn:
             yield conn
 
-# 1. 임베딩 모델 초기화
+# 임베딩 모델 초기화
 embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/distiluse-base-multilingual-cased-v2")
 
-# 2. pgvector 연결 (테이블 구조에 맞게 설정)
-vectorstore = PGVector(
-    connection_string=CONNECTION_STRING,
-    collection_name="interdocs",
-    embedding_function=embedding_model,
-    pre_delete_collection=False,  # 기존 데이터 유지
-    distance_strategy="cosine",  # 유사도 계산 방식
-)
-
-retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 3, "score_threshold": 0.1})
-
-# 3. 문서 추천 툴 함수 정의 (직접 SQL 사용)
-async def direct_vector_search(query_text: str, k: int = 1):
+async def direct_vector_search(query_text: str, k: int = 3):
     """직접 SQL로 벡터 유사도 검색"""
     try:
         # 쿼리 벡터화
@@ -77,7 +60,7 @@ async def direct_vector_search(query_text: str, k: int = 1):
         # DB 연결 및 검색
         async with get_db_connection() as conn:
             async with conn.cursor() as cursor:
-                # 벡터 유사도 검색 쿼리 (사용자 정보 포함)
+                # 벡터 유사도 검색 쿼리
                 sql = """
                 SELECT 
                     i.interdocs_id,
@@ -116,7 +99,7 @@ async def get_document_download_link(s3_key: str) -> str:
     """S3에서 문서의 프리사인드 URL을 생성합니다."""
     try:
         if not s3_key:
-            return "문서의 경로 정보가 없습니다."
+            return ""
             
         # 프리사인드 URL 생성 (1시간 유효)
         async with session.client('s3') as s3:
@@ -128,127 +111,135 @@ async def get_document_download_link(s3_key: str) -> str:
                 },
                 ExpiresIn=3600  # 1시간
             )
-        return f"{url}"
+        return url
     except ClientError as e:
-        return f"다운로드 링크 생성 실패: {str(e)}"
+        print(f"다운로드 링크 생성 실패: {str(e)}")
+        return ""
     except Exception as e:
-        return f"예상치 못한 오류 발생: {str(e)}"
+        print(f"예상치 못한 오류 발생: {str(e)}")
+        return ""
 
-async def recommend_docs_from_role(role_text: str) -> str:
-    print(f"------------------------------------ 문서 추천 에이전트 실행 ------------------------------------")
+async def recommend_documents(role_text: str, k: int = 1) -> dict:
+    """
+    역할이나 업무 내용을 기반으로 관련 문서를 추천하는 함수
+    
+    Args:
+        role_text: 역할이나 업무 내용 (str)
+        k: 추천할 문서 개수 (int, default=1)
+    
+    Returns:
+        dict: 추천 문서 정보가 담긴 딕셔너리
+    """
+    print(f"[recommend_documents] 문서 추천 실행: {role_text}")
+    
     try:
-        # 툴 오용 방지: 파일명으로 검색하는 경우 차단
-        if role_text.endswith(".hwp") or role_text.endswith(".docx"):
-            return f"'{role_text}'는 파일명처럼 보입니다. 역할이나 업무 내용으로 입력해주세요."
-
-        print(f"DEBUG: direct search for '{role_text}'")
-        docs = await direct_vector_search(role_text, k=3)
-        print(f"DEBUG: Found {len(docs)} documents")
+        # LLM을 사용하여 더 나은 추천을 위한 프롬프트 생성
+        llm = ChatOpenAI(model="gpt-4o", temperature=0)
+        
+        # 문서 검색
+        docs = await direct_vector_search(role_text, k=k)
+        print(f"[recommend_documents] 검색된 문서 수: {len(docs)}")
         
         if not docs:
-            return "추천할 문서를 찾지 못했습니다."
+            return {
+                "documents": [],
+                "message": "추천할 문서를 찾지 못했습니다."
+            }
         
-        result_docs = []
-        for i, doc in enumerate(docs, 1):
-            doc_id = doc['interdocs_id']
-            title = doc['interdocs_filename']
-            similarity = doc['similarity_score']
-            path = doc['interdocs_path']
-            snippet = doc['content'][:200].strip().replace("\n", " ")
-            
-            # 다운로드 링크 생성
-            download_link = await get_document_download_link(path)
-            
-            result_docs.append({
-                "id": doc_id,
-                "title": title,
-                "similarity": similarity,
-                "preview": snippet,
-                "download_url": download_link
+        # 문서 정보 구성
+        doc_info_list = []
+        for doc in docs:
+            snippet = doc['content'][:300].strip().replace("\n", " ")
+            doc_info_list.append({
+                "filename": doc['interdocs_filename'],
+                "content_preview": snippet,
+                "similarity": doc['similarity_score']
             })
+        
+        # LLM을 사용하여 문서 추천 및 설명 생성
+        prompt = f'''
+다음은 "{role_text}"와 관련된 문서 검색 결과입니다.
+
+검색된 문서들:
+{json.dumps(doc_info_list, ensure_ascii=False, indent=2)}
+
+위 문서들을 분석하여 사용자의 역할이나 업무와 가장 관련성이 높은 순서로 정렬하고, 
+각 문서가 왜 추천되는지 간단한 설명을 포함하여 아래 JSON 형식으로 응답해주세요.
+
+출력 형식:
+{{
+  "documents": [
+    {{
+      "title": "문서 제목",
+      "download_url": "다운로드 URL",
+      "similarity_score": "유사도 점수",
+      "relevance_reason": "이 문서가 추천되는 이유 (한 문장으로 간단히)"
+    }}
+  ]
+}}
+'''
+
+        response = await llm.ainvoke(prompt)
+        agent_output = response.content
+        print(f"[recommend_documents] LLM 응답: {agent_output}")
+
+        # JSON 파싱
+        try:
+            agent_output = agent_output.strip()
+            if agent_output.startswith("```json"):
+                agent_output = agent_output.removeprefix("```json").removesuffix("```").strip()
             
-        return result_docs
+            match = re.search(r'\{.*\}', agent_output, re.DOTALL)
+            if match:
+                agent_output = match.group()
+                result_json = json.loads(agent_output)
+            else:
+                # 파싱 실패 시 기본 구조 생성
+                result_json = {"documents": []}
+                
+        except Exception as e:
+            print(f"[recommend_documents] JSON 파싱 오류: {e}")
+            result_json = {"documents": []}
+        
+        # 다운로드 링크 생성 및 최종 결과 구성
+        final_documents = []
+        for i, doc in enumerate(docs):
+            download_url = await get_document_download_link(doc['interdocs_path'])
+            
+            # LLM 결과에서 해당하는 문서 찾기
+            llm_doc = None
+            if result_json.get("documents") and i < len(result_json["documents"]):
+                llm_doc = result_json["documents"][i]
+            
+            final_documents.append({
+                "title": doc['interdocs_filename'],
+                "download_url": download_url,
+                "similarity_score": doc['similarity_score'],
+                "relevance_reason": llm_doc.get("relevance_reason", "관련성 높은 문서") if llm_doc else "관련성 높은 문서"
+            })
+        
+        return {
+            "documents": final_documents
+        }
             
     except Exception as e:
-        return f"문서 추천 중 오류 발생: {e}"
+        print(f"[recommend_documents] 문서 추천 중 오류 발생: {e}")
+        return {
+            "documents": [],
+            "error": f"문서 추천 중 오류 발생: {str(e)}"
+        }
 
-# 4. 에이전트용 툴 정의
-# tools = [
-#     Tool(
-#         name="RecommendInternalDocs",
-#         func=recommend_docs_from_role,
-#         description="""사용자의 역할 분담 내용에 따라 관련된 사내 문서를 한국어로 추천합니다. 
-#                      예: '회의록 작성', '신입 교육 자료', '경비 정산 규정' 등. 
-#                      절대 영어로 변환하지 말고, 한국어 그대로 툴의 인풋으로 전달해야 합니다."""
-#     ),
-#     Tool(
-#         name="GetDocumentDownloadLink",
-#         func=get_document_download_link,
-#         description="""S3 키를 받아 해당 문서의 다운로드 링크를 생성합니다.
-#                      입력 형식: "S3 키 경로" (예: "documents/example.pdf")"""
-#     )
-# ]
+# 테스트 실행 함수
+async def run_doc_recommendation(query: str) -> dict:
+    """문서 추천 실행 함수"""
+    print(f"\n[입력된 역할/업무 내용]\n{query}\n")
+    result = await recommend_documents(query)
+    print(f"\n[문서 추천 결과]\n{json.dumps(result, ensure_ascii=False, indent=2)}")
+    return result
 
-@tool
-async def RecommendInternalDocs(role_text: str) -> str:
-    """사용자의 역할 분담 내용에 따라 관련된 사내 문서를 한국어로 추천합니다. 
-                      예: '회의록 작성', '신입 교육 자료', '경비 정산 규정' 등. 
-                      절대 영어로 변환하지 말고, 한국어 그대로 툴의 인풋으로 전달해야 합니다."""
-    return await recommend_docs_from_role(role_text)
-
-@tool
-async def GetDocumentDownloadLink(s3_key: str) -> str:
-    """S3 키를 받아 해당 문서의 다운로드 링크를 생성합니다.
-                      입력 형식: "S3 키 경로" (예: "documents/example.pdf")"""
-    return await get_document_download_link(s3_key)
-
-tools = [
-    RecommendInternalDocs,
-    GetDocumentDownloadLink
-]
-
-# 5. LLM 및 에이전트 초기화
-llm = ChatOpenAI(openai_api_key=openai_api_key, temperature=0, model="gpt-3.5-turbo")
-
-# 에이전트 프롬프트 구성
-agent_prompt = ChatPromptTemplate.from_messages([
-    SystemMessage(content="""당신은 FlowyPro의 사내 문서 추천 전문가입니다. 
-                                    사용자의 질문에 대해 다음과 같은 순서로 작업을 수행합니다:
-                                    1. RecommendInternalDocs 툴을 사용하여 관련 문서를 찾습니다.
-                                    2. 문서를 찾으면, GetDocumentDownloadLink 툴을 사용하여 각 문서의 다운로드 링크를 생성합니다.
-                                    3. 생성한 다운로드 링크를 아웃풋에 넣습니다.
-                                    
-                                    모든 대화와 툴 사용은 한국어로 진행되어야 합니다.
-                                    특히, RecommendInternalDocs 툴의 'role_text' 인풋은 절대 영어로 번역하지 말고,
-                                    사용자가 입력한 한국어 내용을 그대로 전달해야 합니다.
-                                    
-                                    각 문서의 다운로드 링크를 반드시 포함해서 출력하세요.
-                                    링크가 없으면 "링크 없음"이라고 명시하세요."""),
-    HumanMessage(content="{input}"),
-    MessagesPlaceholder(variable_name="agent_scratchpad"),
-])
-
-agent = initialize_agent(
-    tools,
-    llm,
-    agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-    verbose=True,
-    handle_parsing_errors=True,
-    agent_kwargs={
-        "prompt": agent_prompt,
-    }
-)
-
-# 6. 실행 함수 정의
-async def run_doc_recommendation(query: str) -> str:
-    print(f"\n[입력된 역할 분담 내용]\n{query}\n")
-    response = await agent.ainvoke({"input": query})
-    print(f"\n[에이전트 응답]\n{response}")
-    return response
-
-# 7. 테스트 실행
+# 테스트 실행
 if __name__ == "__main__":
     import asyncio
-    print("\n========== 기존 테스트 실행 ==========")
+    print("\n========== 문서 추천 테스트 실행 ==========")
     test_query = "회의에서 김대리는 회의록을 작성하기로 했다"
     asyncio.run(run_doc_recommendation(test_query))

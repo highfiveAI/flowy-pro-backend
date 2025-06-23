@@ -94,11 +94,73 @@ async def extract_internal_doc_keywords(meeting_text: str) -> list[str]:
     print(f"------------------------------------ 내부 문서 검색 키워드 추출 완료 ------------------------------------")
     return keywords
 
-def extract_link_from_output(output: str) -> str:
-    match = re.search(r'https?://[\w\-._~:/?#\[\]@!$&\'()*+,;=%]+', output)
-    if match:
-        return match.group(0)
+def extract_document_info_from_output(output):
+    """
+    doc_recommendation 결과에서 문서 정보를 추출하는 함수
+    
+    Args:
+        output: doc_recommendation의 반환값 (dict 또는 str)
+    
+    Returns:
+        list: [{"title": "문서제목", "download_url": "링크", "relevance_reason": "이유"}, ...]
+    """
+    documents = []
+    
+    try:
+        print(f"[DEBUG extract_function] input type: {type(output)}")
+        print(f"[DEBUG extract_function] input value: {output}")
+        
+        if isinstance(output, dict):
+            # 딕셔너리인 경우 documents 키에서 추출
+            documents = output.get("documents", [])
+            print(f"[DEBUG extract_function] 딕셔너리에서 추출된 documents: {documents}")
+            
+        elif isinstance(output, str):
+            # 문자열인 경우 JSON 파싱 시도
+            try:
+                import json
+                # JSON 형태의 문자열에서 파싱
+                if "```json" in output:
+                    json_match = re.search(r'```json\s*(\{.*?\})\s*```', output, re.DOTALL)
+                    if json_match:
+                        json_str = json_match.group(1)
+                        parsed = json.loads(json_str)
+                        documents = parsed.get("documents", [])
+                else:
+                    # 직접 JSON 파싱 시도
+                    json_match = re.search(r'\{.*\}', output, re.DOTALL)
+                    if json_match:
+                        parsed = json.loads(json_match.group())
+                        documents = parsed.get("documents", [])
+                        
+            except json.JSONDecodeError as je:
+                print(f"[DEBUG extract_function] JSON 파싱 실패: {je}")
+                print(f"[DEBUG extract_function] 파싱 시도한 문자열: {output}")
+                
+    except Exception as e:
+        print(f"[DEBUG extract_function] 문서 정보 추출 오류: {e}")
+    
+    print(f"[DEBUG extract_function] 최종 반환할 documents: {documents}")
+    return documents
+
+def extract_link_from_output(output):
+    """기존 링크 추출 함수 (호환성 유지)"""
+    documents = extract_document_info_from_output(output)
+    if documents and len(documents) > 0:
+        return documents[0].get("download_url", "")
     return ""
+
+def extract_title_from_output(output):
+    """출력에서 첫 번째 문서의 title 추출"""
+    documents = extract_document_info_from_output(output)
+    if documents and len(documents) > 0:
+        return documents[0].get("title", "")
+    return ""
+
+def extract_all_titles_from_output(output):
+    """출력에서 모든 문서의 title 리스트 추출"""
+    documents = extract_document_info_from_output(output)
+    return [doc.get("title", "") for doc in documents if doc.get("title")]
 
 async def super_agent_for_meeting(meeting_text: str, db=None, meeting_id=None) -> str:
     print("[상위 에이전트] 회의 텍스트 분석 중...")
@@ -142,6 +204,10 @@ async def super_agent_for_meeting(meeting_text: str, db=None, meeting_id=None) -
 #     else:
 #         print("[상위 에이전트] 외부 문서 양식 검색 불필요.")
     
+async def super_agent_for_meeting(meeting_text: str, db=None, meeting_id=None) -> str:
+    print("[상위 에이전트] 회의 텍스트 분석 중...")
+    results = []
+    
     if await should_use_internal_doc_tool(meeting_text):
         print("[상위 에이전트] 내부 문서 양식 검색 필요 판단됨.")
         internal_keywords = await extract_internal_doc_keywords(meeting_text)
@@ -151,28 +217,41 @@ async def super_agent_for_meeting(meeting_text: str, db=None, meeting_id=None) -
         for keyword in internal_keywords:
             print(f"실제 저장/출력할 키워드: {keyword}")
             internal_result = await doc_recommendation(keyword)
-            # output이 딕셔너리면 output 키, 아니면 문자열
-            output = None
-            if isinstance(internal_result, dict):
-                output = internal_result.get("output", "")
-            elif isinstance(internal_result, str):
-                output = internal_result
-            else:
-                output = ""
-            # 링크만 추출
-            link = extract_link_from_output(output)
+            
+            print(f"[DEBUG] doc_recommendation 결과: {internal_result}")
+            
+            # internal_result가 직접 딕셔너리 형태이므로 바로 사용
+            documents = extract_document_info_from_output(internal_result)  # internal_result를 직접 전달
+            
+            print(f"[DEBUG] 추출된 documents: {documents}")
+            
+            # 첫 번째 문서에서 link와 title 추출
+            link = documents[0].get("download_url", "") if documents else ""
+            title = documents[0].get("title", "") if documents else ""
+            
+            print(f"[DEBUG] 추출된 link: {link}")
+            print(f"[DEBUG] 추출된 title: {title}")
+            
             results.append(f"**키워드: {keyword}**\n{internal_result}")
+            
             # draft_log 저장
             if db is not None and meeting_id is not None:
                 try:
-                    await insert_draft_log(
-                        db=db,
-                        meeting_id=meeting_id,
-                        draft_ref_reason=keyword,
-                        ref_interdoc_id=link
-                    )
+                    if link and title:  # 값이 있을 때만 저장
+                        await insert_draft_log(
+                            db=db,
+                            meeting_id=meeting_id,
+                            draft_ref_reason=keyword,
+                            ref_interdoc_id=link,
+                            draft_title=title
+                        )
+                        print(f"[DEBUG] 저장 완료 - link: {link}, title: {title}")
+                    else:
+                        print(f"[DEBUG] 저장 실패 - 빈 값: link='{link}', title='{title}'")
+                        
                 except Exception as e:
                     print(f"[draft_log 저장 오류] {e}")
+                    print(f"[DEBUG] 저장 시도한 값들 - meeting_id: {meeting_id}, keyword: {keyword}, link: {link}, title: {title}")
                     if hasattr(db, 'rollback'):
                         await db.rollback()
     else:

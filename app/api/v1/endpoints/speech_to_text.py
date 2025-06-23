@@ -265,7 +265,7 @@ async def analyze_meeting_api(
     all_txt_result = " ".join(tag_result.get("all_sentences") or [])
     search_result = await super_agent_for_meeting(all_txt_result,db=db,meeting_id=meeting_id)
     urls = re.findall(r'https?://\S+', search_result)
-    print(f"\n\n찾은 내부 문서 링크 함 보세요잉 : {search_result}\n\n")
+    print(f"\n\n찾은 내부 문서 링크 함 보세요잉 :\n {search_result}\n\n")
     # urls = [
     #     "https://example.com",
     #     "https://example.org",
