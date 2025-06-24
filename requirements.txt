@@ -65,6 +65,7 @@ pydub==0.25.1
 PyPDF2==3.0.1
 pymupdf
 python-docx
+python-pptx
 python-dotenv==1.1.0
 python-multipart==0.0.20
 python-jose[cryptography]
