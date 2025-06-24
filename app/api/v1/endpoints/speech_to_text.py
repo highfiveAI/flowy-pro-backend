@@ -20,7 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.meeting import Meeting
 from app.services.calendar_service.calendar_crud import insert_meeting_calendar
-from app.services.notify_email_service import send_meeting_update_email
+from app.services.notify_email_service import send_meeting_update_email, send_meeting_email_without_update
+from fastapi.responses import JSONResponse
 
 router = APIRouter()
 
@@ -293,5 +294,10 @@ async def send_update_email_api(
     # info_n, dt, subj, update_dt, meeting_id 등 프론트에서 넘긴 값 사용
     await send_meeting_update_email(data)
     return {"message": "메일 전송 완료"}
+
+@router.post("/meeting/send-meeting-result")
+async def send_meeting_result(meeting_info: dict):
+    await send_meeting_email_without_update(meeting_info)
+    return JSONResponse(content={"message": "메일 전송 완료"})
 
 

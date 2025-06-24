@@ -207,3 +207,32 @@ async def send_user_status_change_email(user_name: str, user_email: str, status:
     await send_email(subject, [user_email], body)
 
     
+# 회의 분석결과 수정없이 메일보내기
+async def send_meeting_email_without_update(meeting_info):
+    """
+    회의 분석 결과 수정 없이 메일 전송 함수
+    meeting_info: dict, info_n(참석자 리스트), dt(일시), subj(주제) 필수
+    """
+    from datetime import datetime
+    for participant in meeting_info["info_n"]:
+        name = participant.get("name", "")
+        email = participant.get("email", "")
+        # 날짜 포맷 변환
+        try:
+            dt_obj = datetime.fromisoformat(meeting_info["dt"])
+            date_str = dt_obj.strftime('%Y/%m/%d')
+            datetime_str = dt_obj.strftime('%Y/%m/%d %H:%M')
+        except Exception:
+            date_str = meeting_info["dt"]
+            datetime_str = meeting_info["dt"]
+        subject = f"[FLOWY PRO] '{date_str}' '{meeting_info['subj']}' 분석 결과"
+        body = f"""
+        안녕하세요, Flowy Pro 입니다.<br><br>
+        '{datetime_str}'에 진행한 '{meeting_info['subj']}'의 회의 분석 결과 입니다.<br>
+        상세 분석 결과는 링크에서 확인하세요.<br>
+        <a href='http://localhost:5173/dashboard/{meeting_info.get('meeting_id', '')}'>회의 분석 결과 바로가기</a><br>
+        <br>---<br><br>
+        감사합니다.<br>
+        Flowy Pro 드림
+        """
+        await send_email(subject, [email], body)
