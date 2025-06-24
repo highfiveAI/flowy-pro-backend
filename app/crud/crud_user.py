@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import select, asc
+from sqlalchemy import select, asc, desc
 from app.models import FlowyUser, SignupLog, ProjectUser, Project, Role
 from app.schemas.signup_info import UserCreate, TokenPayload
 from app.schemas.mypage import UserUpdateRequest, UserWithCompanyInfo
@@ -110,7 +110,7 @@ async def get_signup_status_or_raise_to_login_page(db: AsyncSession, user_id: UU
     stmt = (
         select(SignupLog)
         .where(SignupLog.signup_request_user_id == user_id)
-        .order_by(asc(SignupLog.signup_status_changed_date))
+        .order_by(desc(SignupLog.signup_status_changed_date))  # 최신순
         .limit(1)
     )
     result = await db.execute(stmt)
@@ -118,27 +118,24 @@ async def get_signup_status_or_raise_to_login_page(db: AsyncSession, user_id: UU
 
     if not signup_log:
         raise HTTPException(
-            status_code=307,
+            status_code=302,
             headers={"Location": f"{FRONTEND_URI}/login?error=not_found"}
         )
 
-    status_value = signup_log.signup_completed_status.lower()
+    status_value = (signup_log.signup_completed_status or "").lower()
 
     if status_value in ["pending", "rejected"]:
         raise HTTPException(
-            status_code=307,
+            status_code=302,
             headers={"Location": f"{FRONTEND_URI}/login?error=not_allowed"}
         )
 
-    return signup_log.signup_completed_status
-
+    return status_value
 
 async def only_authenticate_email(db: AsyncSession, email: str):
     stmt = select(FlowyUser).options(joinedload(FlowyUser.company)).where(FlowyUser.user_email == email)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
-
-    await get_signup_status_or_raise_to_login_page(db, user.user_id)
 
     return user
 
@@ -249,3 +246,10 @@ async def find_id_from_email(db: AsyncSession, email: str):
     user_login_id = result.scalar_one_or_none()
 
     return user_login_id
+
+
+async def is_duplicate_login_id(db: AsyncSession, login_id: str) -> bool:
+    stmt = select(FlowyUser).where(FlowyUser.user_login_id == login_id)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    return user is not None

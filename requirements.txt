@@ -29,6 +29,7 @@ httptools==0.6.4
 httpx==0.28.1
 httpx-sse==0.4.0
 huggingface-hub==0.32.2
+ics
 idna==3.10
 itsdangerous
 Jinja2==3.1.6
