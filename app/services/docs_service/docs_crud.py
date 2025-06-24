@@ -18,6 +18,9 @@ from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.future import select
+import base64
+import fitz  # PyMuPDF
+import pptx  # python-pptx
 
 from app.models.interdoc import Interdoc
 
@@ -82,7 +85,15 @@ async def read_file_content(file: UploadFile) -> str:
 
             try:
                 doc = docx.Document(temp_path)
-                content = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+                # 본문 텍스트
+                texts = [paragraph.text for paragraph in doc.paragraphs if paragraph.text.strip()]
+                # 표 텍스트
+                for table in doc.tables:
+                    for row in table.rows:
+                        row_text = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                        if row_text:
+                            texts.append(' | '.join(row_text))
+                content = "\n".join(texts)
             finally:
                 if os.path.exists(temp_path):
                     os.unlink(temp_path)
@@ -118,10 +129,30 @@ async def read_file_content(file: UploadFile) -> str:
                 if os.path.exists(temp_path):
                     os.unlink(temp_path)
         
+        elif file_ext in ['ppt', 'pptx']:
+            # 임시 파일로 저장 후 처리
+            async with aiofiles.tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_ext}') as temp_file:
+                await temp_file.write(await file.read())
+                temp_path = temp_file.name
+            try:
+                prs = pptx.Presentation(temp_path)
+                slides_text = []
+                for slide in prs.slides:
+                    slide_text = []
+                    for shape in slide.shapes:
+                        if hasattr(shape, "text"):
+                            slide_text.append(shape.text)
+                    if slide_text:
+                        slides_text.append("\n".join(slide_text))
+                content = "\n\n".join(slides_text)
+            finally:
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+        
         else:
             raise HTTPException(
                 status_code=400,
-                detail="지원하지 않는 파일 형식입니다. (지원 형식: txt, pdf, doc, docx, xlsx, xls)"
+                detail="지원하지 않는 파일 형식입니다. (지원 형식: txt, pdf, doc, docx, xlsx, xls, ppt, pptx)"
             )
             
         if not content.strip():
@@ -138,13 +169,86 @@ async def read_file_content(file: UploadFile) -> str:
             detail=f"파일 읽기 실패: {str(e)}"
         )
 
+async def pdf_to_images_base64(pdf_path):
+    doc = fitz.open(pdf_path)
+    images_base64 = []
+    for page in doc:
+        pix = page.get_pixmap()
+        img_bytes = pix.tobytes("png")
+        img_b64 = base64.b64encode(img_bytes).decode("utf-8")
+        images_base64.append(img_b64)
+    return images_base64
+
 async def extract_text_from_file(file: UploadFile) -> str:
     """파일명과 내용을 포함한 요약 생성 함수"""
     try:
         await file.seek(0)
-        content = await read_file_content(file)
+        content = ""
         filename = file.filename
+        file_ext = filename.lower().split('.')[-1]
+        is_pdf = file_ext == 'pdf'
+        try:
+            content = await read_file_content(file)
+        except HTTPException as e:
+            if is_pdf and (e.status_code == 400 or e.status_code == 500):
+                # PDF 텍스트 추출 실패 시 이미지 변환
+                async with aiofiles.tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                    await file.seek(0)
+                    await temp_file.write(await file.read())
+                    temp_path = temp_file.name
+                try:
+                    content = await pdf_to_images_base64(temp_path)
+                finally:
+                    if os.path.exists(temp_path):
+                        os.unlink(temp_path)
+            else:
+                raise e
+        # content가 비어있으면(pdf에서 텍스트 추출 실패 등) 이미지 변환
+        if is_pdf and (not content or (isinstance(content, str) and not content.strip())):
+            async with aiofiles.tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                await file.seek(0)
+                await temp_file.write(await file.read())
+                temp_path = temp_file.name
+            try:
+                content = await pdf_to_images_base64(temp_path)
+            finally:
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+        # content가 이미지 리스트라면 vision 프롬프트로 전달
+        if isinstance(content, list):
+            prompt = f"""
+파일명: {filename}
 
+아래 이미지는 PDF 각 페이지를 이미지로 변환한 것입니다. 이미지를 보고 문서의 용도와 종류를 한 문장으로 요약해줘.
+
+예시: '프로젝트 기획안 작성을 위한 문서'
+조건:
+- 문서의 구성요소(예: 목적, 일정, 예산 등)를 기준으로 문서의 종류를 추론할 것
+- 문서 형식이나 스타일 설명은 제외
+- 구체적인 내용이 아니라, '무슨 목적으로 어떤 형식으로 작성된 문서'인지 설명할 것
+- 반드시 단문형 서술체로 요약할 것 (예: '프로젝트 기획안 작성을 위한 문서')
+"""
+            messages = [
+                {"role": "system", "content": "당신은 문서 분석 전문가입니다. 이미지로 된 문서의 용도와 종류를 한 문장으로 요약하세요."},
+                {"role": "user", "content": prompt.strip()}
+            ]
+            # 이미지 1~2장만 vision에 전달
+            for img_b64 in content[:2]:
+                messages.append({
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}}
+                    ]
+                })
+            response = await openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=messages,
+                max_tokens=300,
+                temperature=0.3
+            )
+            summary = response.choices[0].message.content.strip()
+            return summary
+        # 텍스트라면 기존 프롬프트로 처리
         prompt = f"""
 파일명: {filename}
 
@@ -160,7 +264,6 @@ async def extract_text_from_file(file: UploadFile) -> str:
 - 구체적인 내용이 아니라, '무슨 목적으로 어떤 형식으로 작성된 문서'인지 설명할 것
 - 반드시 단문형 서술체로 요약할 것 (예: "프로젝트 기획안 작성을 위한 문서")
 """
-
         response = await openai_client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -170,16 +273,13 @@ async def extract_text_from_file(file: UploadFile) -> str:
             max_tokens=300,
             temperature=0.3
         )
-
         summary = response.choices[0].message.content.strip()
         return summary
-
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail=f"문서 요약 실패: {str(e)}"
         )
-
 
 async def create_document(
     db: AsyncSession,
@@ -189,10 +289,16 @@ async def create_document(
 ) -> Interdoc:
     """문서 생성 함수"""
     try:
+        # 파일명에서 '예스폼_' 접두사 제거
+        filename = file.filename
+        if filename.startswith('예스폼_'):
+            filename = filename[len('예스폼_'):]
+        # 파일 객체의 filename도 수정
+        file.filename = filename
         content = await extract_text_from_file(file)
         embedding = model.encode(content)
         
-        s3_path = f"documents/{file.filename}"
+        s3_path = f"documents/{filename}"
         
         await file.seek(0)
         async with session.client('s3') as s3:
@@ -204,7 +310,7 @@ async def create_document(
         
         doc = Interdoc(
             interdocs_type_name=doc_type,
-            interdocs_filename=file.filename,
+            interdocs_filename=filename,
             interdocs_contents=content[:255],
             interdocs_vector=embedding,
             interdocs_path=s3_path,
@@ -293,7 +399,7 @@ async def update_document(
 async def get_documents(
     db: AsyncSession,
     skip: int = 0,
-    limit: int = 10
+    limit: int = 200
 ) -> List[Interdoc]:
     """문서 목록 조회 함수"""
     print("get_documents 함수 시작")

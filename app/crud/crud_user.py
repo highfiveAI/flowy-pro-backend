@@ -1,4 +1,5 @@
 from fastapi import HTTPException, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select, asc
 from app.models import FlowyUser, SignupLog, ProjectUser, Project, Role
@@ -8,18 +9,22 @@ from app.schemas.project import UserSchema, RoleSchema
 from app.core.security import verify_password
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.config import settings
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Optional
 from uuid import UUID
 
-
+FRONTEND_URI = settings.FRONTEND_URI
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+now = datetime.now(ZoneInfo("Asia/Seoul")).replace(tzinfo=None)
 
 
 async def create_user(db: AsyncSession, user: UserCreate):
     hashed_password = (
         pwd_context.hash(user.password)
     )
-
+    
 
     db_user = FlowyUser(
         user_name=user.name,
@@ -42,6 +47,7 @@ async def create_user(db: AsyncSession, user: UserCreate):
     log = SignupLog(
         signup_request_user_id=db_user.user_id,
         signup_update_user_id=db_user.user_id,
+        signup_status_changed_date=now,
         signup_completed_status="Pending"
     )
     db.add(log)
@@ -100,11 +106,40 @@ async def get_signup_status_or_raise(db: AsyncSession, user_id: UUID) -> str:
 
     return signup_log.signup_completed_status
 
+async def get_signup_status_or_raise_to_login_page(db: AsyncSession, user_id: UUID) -> str:
+    stmt = (
+        select(SignupLog)
+        .where(SignupLog.signup_request_user_id == user_id)
+        .order_by(asc(SignupLog.signup_status_changed_date))
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    signup_log = result.scalars().first()
+
+    if not signup_log:
+        raise HTTPException(
+            status_code=307,
+            headers={"Location": f"{FRONTEND_URI}/login?error=not_found"}
+        )
+
+    status_value = signup_log.signup_completed_status.lower()
+
+    if status_value in ["pending", "rejected"]:
+        raise HTTPException(
+            status_code=307,
+            headers={"Location": f"{FRONTEND_URI}/login?error=not_allowed"}
+        )
+
+    return signup_log.signup_completed_status
+
 
 async def only_authenticate_email(db: AsyncSession, email: str):
     stmt = select(FlowyUser).options(joinedload(FlowyUser.company)).where(FlowyUser.user_email == email)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
+
+    await get_signup_status_or_raise_to_login_page(db, user.user_id)
+
     return user
 
 async def get_mypage_user(db: AsyncSession, email: str):
@@ -208,3 +243,9 @@ async def get_all_users(token_user: TokenPayload, db: AsyncSession) -> list[User
         "roles": roles,
     }
 
+async def find_id_from_email(db: AsyncSession, email: str):
+    stmt = select(FlowyUser.user_login_id).where(FlowyUser.user_email == email)
+    result = await db.execute(stmt)
+    user_login_id = result.scalar_one_or_none()
+
+    return user_login_id

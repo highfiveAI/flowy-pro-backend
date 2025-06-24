@@ -1,5 +1,5 @@
 # routers/user.py
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -8,14 +8,17 @@ from app.core.security import verify_password
 from app.core.config import settings
 from app.schemas.signup_info import SocialUserCreate, UserCreate, LoginInfo, TokenPayload
 from app.schemas.mypage import UserUpdateRequest, UserWithCompanyInfo
-from app.crud.crud_user import create_user, authenticate_user, only_authenticate_email, get_projects_for_user, update_user_info, get_mypage_user, get_company_admin_emails
+from app.schemas.find_id import EmailRequest, CodeRequest
+from app.crud.crud_user import create_user, authenticate_user, only_authenticate_email, get_projects_for_user, update_user_info, get_mypage_user, get_company_admin_emails, find_id_from_email
 from app.crud.crud_company import get_signup_meta
 from app.db.db_session import get_db_session
 from app.services.signup_service.auth import create_access_token, verify_token, verify_access_token, check_access_token
 from app.services.signup_service.google_auth import oauth
+from app.services.notify_email_service import send_verification_code
 from jose import jwt, JWTError, ExpiredSignatureError
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
+from typing import List
 import json
 
 
@@ -195,7 +198,7 @@ async def google_callback(request: Request, response: Response, db: AsyncSession
     name = user_info.get("name")
 
     auth_user = await only_authenticate_email(db, email)
-
+    
     if not auth_user:
         signup_token = await create_access_token(
         data={"sub": name,
@@ -305,3 +308,52 @@ async def mypage_check(
         raise HTTPException(status_code=401, detail="Invalid login_id or password")
 
     return True
+
+@router.post("/find_id/send_code")
+async def send_code_api(request: Request, payload: EmailRequest):
+    try:
+        # 1. 이메일 형식은 Pydantic(EmailStr)에서 기본 검사됨
+        email = payload.email
+
+        # 2. 인증 코드 생성 및 전송 시도
+        code = await send_verification_code(email)
+        if not code:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="인증 코드 생성에 실패했습니다."
+            )
+
+        # 3. 세션에 인증 코드 저장
+        try:
+            request.session['verify_code'] = code
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="세션 저장 중 오류가 발생했습니다."
+            )
+
+        return {"message": "인증 코드가 전송되었습니다."}
+
+    except HTTPException as http_exc:
+        raise http_exc
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="인증 코드 전송 중 알 수 없는 오류가 발생했습니다."
+        )
+
+@router.post("/verify_code")
+async def verify_code(request: Request, payload: CodeRequest):
+    saved_code = request.session.get("verify_code")
+    is_verified = payload.input_code == saved_code
+    return {"verified": is_verified}
+
+@router.post("/find_id")
+async def find_id_api(payload: EmailRequest, db: AsyncSession = Depends(get_db_session)):
+    user_login_id = await find_id_from_email(db, payload.email)
+
+    if not user_login_id:
+        raise HTTPException(status_code=404, detail="해당 이메일로 등록된 아이디가 없습니다.")
+
+    return {"user_login_id": user_login_id}
