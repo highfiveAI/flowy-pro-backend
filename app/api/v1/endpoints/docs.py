@@ -102,7 +102,7 @@ async def update_existing_document(
 @router.get("/", response_model=List[DocumentResponse], dependencies=[Depends(require_company_admin)])
 async def get_all_documents(
     skip: int = 0,
-    limit: int = 10,
+    limit: int = 200,
     db: Session = Depends(get_db) # DB 세션 주입
 ):
     """
