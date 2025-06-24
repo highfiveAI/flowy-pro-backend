@@ -1,7 +1,7 @@
 from typing import Dict, List
 import torch
 import numpy as np
-from transformers import WhisperProcessor, WhisperForConditionalGeneration
+from transformers.models.whisper import WhisperProcessor, WhisperForConditionalGeneration
 from pydub import AudioSegment
 import os
 import math
@@ -18,7 +18,8 @@ openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 def split_sentences_with_overlap(text):
     chunk_size = 7
     stride = 2
-    sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+    sentences = re.split(r'(?<=[.!?])["”’]?[\s\n]+', text.strip())
+    sentences = [s.strip() for s in sentences if s.strip()]
     chunks = []
     n = len(sentences)
     start = 0

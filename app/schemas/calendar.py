@@ -9,7 +9,7 @@ class CalendarResponse(BaseModel):
     title: str
     start: datetime
     end: Optional[datetime] = None
-    calendar_type: str
+    calendar_type: str  # meeting, todo 만 가능
     completed: bool
     created_at: datetime
     updated_at: Optional[datetime] = None
