@@ -85,7 +85,15 @@ async def read_file_content(file: UploadFile) -> str:
 
             try:
                 doc = docx.Document(temp_path)
-                content = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+                # 본문 텍스트
+                texts = [paragraph.text for paragraph in doc.paragraphs if paragraph.text.strip()]
+                # 표 텍스트
+                for table in doc.tables:
+                    for row in table.rows:
+                        row_text = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                        if row_text:
+                            texts.append(' | '.join(row_text))
+                content = "\n".join(texts)
             finally:
                 if os.path.exists(temp_path):
                     os.unlink(temp_path)
@@ -281,10 +289,16 @@ async def create_document(
 ) -> Interdoc:
     """문서 생성 함수"""
     try:
+        # 파일명에서 '예스폼_' 접두사 제거
+        filename = file.filename
+        if filename.startswith('예스폼_'):
+            filename = filename[len('예스폼_'):]
+        # 파일 객체의 filename도 수정
+        file.filename = filename
         content = await extract_text_from_file(file)
         embedding = model.encode(content)
         
-        s3_path = f"documents/{file.filename}"
+        s3_path = f"documents/{filename}"
         
         await file.seek(0)
         async with session.client('s3') as s3:
@@ -296,7 +310,7 @@ async def create_document(
         
         doc = Interdoc(
             interdocs_type_name=doc_type,
-            interdocs_filename=file.filename,
+            interdocs_filename=filename,
             interdocs_contents=content[:255],
             interdocs_vector=embedding,
             interdocs_path=s3_path,
@@ -385,7 +399,7 @@ async def update_document(
 async def get_documents(
     db: AsyncSession,
     skip: int = 0,
-    limit: int = 10
+    limit: int = 200
 ) -> List[Interdoc]:
     """문서 목록 조회 함수"""
     print("get_documents 함수 시작")
