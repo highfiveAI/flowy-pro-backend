@@ -266,35 +266,35 @@ async def update_company_status(company_id: UUID, status_update: CompanyStatusUp
 
 
 # 직급 관리 API
-@router.post("/positions/", response_model=PositionResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_company_admin)])
+@router.post("/positions/", response_model=PositionResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_any_admin)])
 async def create_position(position: PositionCreate):
     """새로운 직급을 생성합니다."""
     crud = PositionCRUD()
     return await crud.create(position.model_dump())
 
 
-@router.get("/positions/{position_id}", response_model=PositionResponse, dependencies=[Depends(require_company_admin)])
+@router.get("/positions/{position_id}", response_model=PositionResponse, dependencies=[Depends(require_any_admin)])
 async def get_position(position_id: UUID):
     """특정 직급의 정보를 조회합니다."""
     crud = PositionCRUD()
     return await crud.get_by_id(position_id)
 
 
-@router.get("/positions/", response_model=List[PositionResponse], dependencies=[Depends(require_company_admin)])
+@router.get("/positions/", response_model=List[PositionResponse], dependencies=[Depends(require_any_admin)])
 async def list_positions(skip: int = 0, limit: int = 100):
     """직급 목록을 조회합니다."""
     crud = PositionCRUD()
     return await crud.get_all(skip=skip, limit=limit)
 
 
-@router.put("/positions/{position_id}", response_model=PositionResponse, dependencies=[Depends(require_company_admin)])
+@router.put("/positions/{position_id}", response_model=PositionResponse, dependencies=[Depends(require_any_admin)])
 async def update_position(position_id: UUID, position: PositionUpdate):
     """직급 정보를 수정합니다."""
     crud = PositionCRUD()
     return await crud.update(position_id, position.model_dump(exclude_unset=True))
 
 
-@router.delete("/positions/{position_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_company_admin)])
+@router.delete("/positions/{position_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_any_admin)])
 async def delete_position(position_id: UUID):
     """직급을 삭제합니다."""
     crud = PositionCRUD()

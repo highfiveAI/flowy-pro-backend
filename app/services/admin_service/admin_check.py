@@ -16,11 +16,11 @@ from uuid import UUID
 async def get_current_user(request: Request):
     token = request.cookies.get("access_token")
     if not token:
-        raise HTTPException(status_code=401, detail="인증 실패")
+        raise HTTPException(status_code=402, detail="인증 실패")
     try:
         user: TokenPayload = await verify_access_token(token)
     except ValueError:
-        raise HTTPException(status_code=401, detail="인증 실패")
+        raise HTTPException(status_code=404, detail="인증 실패")
     return user  # user.sysrole 등으로 권한 확인 가능
 
 

@@ -9,7 +9,18 @@ from app.core.config import settings
 from app.schemas.signup_info import SocialUserCreate, UserCreate, LoginInfo, TokenPayload
 from app.schemas.mypage import UserUpdateRequest, UserWithCompanyInfo
 from app.schemas.find_id import EmailRequest, CodeRequest
-from app.crud.crud_user import create_user, authenticate_user, only_authenticate_email, get_projects_for_user, update_user_info, get_mypage_user, get_company_admin_emails, find_id_from_email
+from app.crud.crud_user import (
+    create_user,
+    authenticate_user,
+    only_authenticate_email,
+    get_projects_for_user,
+    update_user_info,
+    get_mypage_user,
+    get_company_admin_emails,
+    find_id_from_email,
+    get_signup_status_or_raise_to_login_page,
+    is_duplicate_login_id,
+)
 from app.crud.crud_company import get_signup_meta
 from app.db.db_session import get_db_session
 from app.services.signup_service.auth import create_access_token, verify_token, verify_access_token, check_access_token
@@ -75,6 +86,10 @@ async def signup(user: UserCreate, db: AsyncSession = Depends(get_db_session)):
     except Exception as e:
         # 2. DB 저장 실패 시 에러 반환, 메일 발송 X
         return JSONResponse(status_code=400, content={"message": f"회원가입 실패: {str(e)}"})
+
+    duplicate = await is_duplicate_login_id(db, db_user.user_login_id)
+    if not duplicate:
+        return JSONResponse(status_code=400, content={"message": "회원가입 검증 실패: DB에 사용자 정보가 없습니다."})
     
     # 3. DB 저장 성공 시 관리자에게 메일 발송
     try:
@@ -218,6 +233,8 @@ async def google_callback(request: Request, response: Response, db: AsyncSession
         )
         return redirect_response
 
+    await get_signup_status_or_raise_to_login_page(db, auth_user.user_id)
+
     payload = TokenPayload(
         sub=str(auth_user.user_id),
         id=str(auth_user.user_id),
@@ -357,3 +374,8 @@ async def find_id_api(payload: EmailRequest, db: AsyncSession = Depends(get_db_s
         raise HTTPException(status_code=404, detail="해당 이메일로 등록된 아이디가 없습니다.")
 
     return {"user_login_id": user_login_id}
+
+@router.get("/sign_up/check_id")
+async def check_duplicate_id(login_id: str, db: AsyncSession = Depends(get_db_session)):
+    is_duplicate = await is_duplicate_login_id(db, login_id)
+    return {"is_duplicate": is_duplicate}

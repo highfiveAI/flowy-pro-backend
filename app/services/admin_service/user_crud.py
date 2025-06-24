@@ -486,7 +486,6 @@ class UserCRUD:
         sysrole = result.scalar_one_or_none()
         if sysrole:
             return sysrole.sysrole_id
-        # fallback: 기존 하드코딩 값 (예시)
         return UUID("c4cb5e53-617e-463f-8ddb-67252f9a9742")
 
     async def set_admin_user(self, user_id: UUID, company_id: UUID = None, force: bool = False) -> bool:
@@ -512,6 +511,14 @@ class UserCRUD:
                 if admin.user_id != user.user_id:
                     admin.user_sysrole_id = user_sysrole_id
         user.user_sysrole_id = admin_sysrole_id
+
+        # signup_log의 signup_completed_status를 Approved로 변경
+        signup_log_query = select(SignupLog).filter(SignupLog.signup_request_user_id == user_id)
+        signup_log_result = await self.db.execute(signup_log_query)
+        signup_log = signup_log_result.scalar_one_or_none()
+        if signup_log:
+            signup_log.signup_completed_status = "Approved"
+
         await self.db.commit()
         await self.db.refresh(user)
         return True
