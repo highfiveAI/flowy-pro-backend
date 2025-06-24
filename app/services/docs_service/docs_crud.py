@@ -20,6 +20,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.future import select
 import base64
 import fitz  # PyMuPDF
+import pptx  # python-pptx
 
 from app.models.interdoc import Interdoc
 
@@ -84,7 +85,15 @@ async def read_file_content(file: UploadFile) -> str:
 
             try:
                 doc = docx.Document(temp_path)
-                content = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+                # 본문 텍스트
+                texts = [paragraph.text for paragraph in doc.paragraphs if paragraph.text.strip()]
+                # 표 텍스트
+                for table in doc.tables:
+                    for row in table.rows:
+                        row_text = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                        if row_text:
+                            texts.append(' | '.join(row_text))
+                content = "\n".join(texts)
             finally:
                 if os.path.exists(temp_path):
                     os.unlink(temp_path)
@@ -120,10 +129,30 @@ async def read_file_content(file: UploadFile) -> str:
                 if os.path.exists(temp_path):
                     os.unlink(temp_path)
         
+        elif file_ext in ['ppt', 'pptx']:
+            # 임시 파일로 저장 후 처리
+            async with aiofiles.tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_ext}') as temp_file:
+                await temp_file.write(await file.read())
+                temp_path = temp_file.name
+            try:
+                prs = pptx.Presentation(temp_path)
+                slides_text = []
+                for slide in prs.slides:
+                    slide_text = []
+                    for shape in slide.shapes:
+                        if hasattr(shape, "text"):
+                            slide_text.append(shape.text)
+                    if slide_text:
+                        slides_text.append("\n".join(slide_text))
+                content = "\n\n".join(slides_text)
+            finally:
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+        
         else:
             raise HTTPException(
                 status_code=400,
-                detail="지원하지 않는 파일 형식입니다. (지원 형식: txt, pdf, doc, docx, xlsx, xls)"
+                detail="지원하지 않는 파일 형식입니다. (지원 형식: txt, pdf, doc, docx, xlsx, xls, ppt, pptx)"
             )
             
         if not content.strip():
@@ -260,10 +289,16 @@ async def create_document(
 ) -> Interdoc:
     """문서 생성 함수"""
     try:
+        # 파일명에서 '예스폼_' 접두사 제거
+        filename = file.filename
+        if filename.startswith('예스폼_'):
+            filename = filename[len('예스폼_'):]
+        # 파일 객체의 filename도 수정
+        file.filename = filename
         content = await extract_text_from_file(file)
         embedding = model.encode(content)
         
-        s3_path = f"documents/{file.filename}"
+        s3_path = f"documents/{filename}"
         
         await file.seek(0)
         async with session.client('s3') as s3:
@@ -275,7 +310,7 @@ async def create_document(
         
         doc = Interdoc(
             interdocs_type_name=doc_type,
-            interdocs_filename=file.filename,
+            interdocs_filename=filename,
             interdocs_contents=content[:255],
             interdocs_vector=embedding,
             interdocs_path=s3_path,
@@ -364,7 +399,7 @@ async def update_document(
 async def get_documents(
     db: AsyncSession,
     skip: int = 0,
-    limit: int = 10
+    limit: int = 200
 ) -> List[Interdoc]:
     """문서 목록 조회 함수"""
     print("get_documents 함수 시작")
