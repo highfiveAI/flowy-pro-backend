@@ -20,6 +20,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.future import select
 import base64
 import fitz  # PyMuPDF
+import pptx  # python-pptx
 
 from app.models.interdoc import Interdoc
 
@@ -120,10 +121,30 @@ async def read_file_content(file: UploadFile) -> str:
                 if os.path.exists(temp_path):
                     os.unlink(temp_path)
         
+        elif file_ext in ['ppt', 'pptx']:
+            # 임시 파일로 저장 후 처리
+            async with aiofiles.tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_ext}') as temp_file:
+                await temp_file.write(await file.read())
+                temp_path = temp_file.name
+            try:
+                prs = pptx.Presentation(temp_path)
+                slides_text = []
+                for slide in prs.slides:
+                    slide_text = []
+                    for shape in slide.shapes:
+                        if hasattr(shape, "text"):
+                            slide_text.append(shape.text)
+                    if slide_text:
+                        slides_text.append("\n".join(slide_text))
+                content = "\n\n".join(slides_text)
+            finally:
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+        
         else:
             raise HTTPException(
                 status_code=400,
-                detail="지원하지 않는 파일 형식입니다. (지원 형식: txt, pdf, doc, docx, xlsx, xls)"
+                detail="지원하지 않는 파일 형식입니다. (지원 형식: txt, pdf, doc, docx, xlsx, xls, ppt, pptx)"
             )
             
         if not content.strip():
