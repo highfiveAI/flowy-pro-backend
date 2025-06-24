@@ -89,7 +89,7 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
     print(f"[tag_chunks] 전달받은 attendees_list: {attendees_list}", flush=True)
     print(f"[tag_chunks] 전달받은 agenda: {agenda}", flush=True)
     print(f"[tag_chunks] 전달받은 meeting_date: {meeting_date}", flush=True)
-    print(f"[tag_chunks] 전달받은 chunks:", flush=True)
+    print(f"[tag_chunks] 전달받은 chunks: {chunks}", flush=True)
     chunk_sentences = []
     for idx, chunk in enumerate(chunks):
         print(f"  청크 {idx+1}: {chunk}", flush=True)
