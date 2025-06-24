@@ -288,9 +288,7 @@ async def analyze_meeting_api(
     }
 
 @router.post("/meeting/send-update-email")
-async def send_update_email_api(
-    data: dict = Body(...)
-):
+async def send_update_email_api(data: dict = Body(...)):
     # info_n, dt, subj, update_dt, meeting_id 등 프론트에서 넘긴 값 사용
     await send_meeting_update_email(data)
     return {"message": "메일 전송 완료"}
