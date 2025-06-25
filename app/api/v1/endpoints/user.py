@@ -8,7 +8,15 @@ from app.core.security import verify_password
 from app.core.config import settings
 from app.schemas.signup_info import SocialUserCreate, UserCreate, LoginInfo, TokenPayload
 from app.schemas.mypage import UserUpdateRequest, UserWithCompanyInfo
-from app.schemas.find_id import EmailRequest, CodeRequest
+from app.schemas.find_id import (
+    EmailRequest,
+    CodeRequest,
+    CodeWithIdAndEmailRequest,
+    VerifyCodeResponse,
+    VerifiedPwTokenPayload,
+    PasswordChangeRequest,
+    PasswordChangeResponse,
+)
 from app.crud.crud_user import (
     create_user,
     authenticate_user,
@@ -20,10 +28,12 @@ from app.crud.crud_user import (
     find_id_from_email,
     get_signup_status_or_raise_to_login_page,
     is_duplicate_login_id,
+    get_user_by_login_id_and_email,
+    update_user_password
 )
 from app.crud.crud_company import get_signup_meta
 from app.db.db_session import get_db_session
-from app.services.signup_service.auth import create_access_token, verify_token, verify_access_token, check_access_token
+from app.services.signup_service.auth import create_access_token, verify_token, verify_access_token, check_access_token, check_password_token
 from app.services.signup_service.google_auth import oauth
 from app.services.notify_email_service import send_verification_code
 from jose import jwt, JWTError, ExpiredSignatureError
@@ -326,6 +336,7 @@ async def mypage_check(
 
     return True
 
+# 이메일 전송 라우터
 @router.post("/find_id/send_code")
 async def send_code_api(request: Request, payload: EmailRequest):
     try:
@@ -342,7 +353,7 @@ async def send_code_api(request: Request, payload: EmailRequest):
 
         # 3. 세션에 인증 코드 저장
         try:
-            request.session['verify_code'] = code
+            request.session['verify_code:{payload.email}'] = code
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -359,13 +370,50 @@ async def send_code_api(request: Request, payload: EmailRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="인증 코드 전송 중 알 수 없는 오류가 발생했습니다."
         )
+        
 
+# 인증번호를 체크 하는 라우터(아이디)
 @router.post("/verify_code")
 async def verify_code(request: Request, payload: CodeRequest):
-    saved_code = request.session.get("verify_code")
+    saved_code = request.session.get("verify_code:{payload.email}")
     is_verified = payload.input_code == saved_code
     return {"verified": is_verified}
 
+# 인증번호를 체크 하는 라우터(비밀번호 - 비밀번호같은 경우는 체크후 토큰 생성까지 필요)
+@router.post("/find_pw/verify_code", response_model=VerifyCodeResponse)
+async def verify_code(
+    request: Request,
+    response: Response,
+    payload: CodeWithIdAndEmailRequest,
+    db: AsyncSession = Depends(get_db_session),
+):
+    user = await get_user_by_login_id_and_email(db, payload.user_login_id, payload.email)
+
+    saved_code = request.session.get("verify_code:{payload.email}")
+    is_verified = bool(user) and (payload.input_code == saved_code)
+
+    if is_verified:
+        verified_payload = VerifiedPwTokenPayload(
+            user_login_id=user.user_login_id,
+            email=user.user_email,
+        )
+        verified_pw_token = await create_access_token(
+            data=verified_payload.dict(),
+            expires_delta=timedelta(minutes=30)
+        )
+        response.set_cookie(
+            key="verified_pw_token",
+            value=verified_pw_token,
+            httponly=True,
+            secure=COOKIE_SECURE,
+            samesite=COOKIE_SAMESITE,
+            max_age=600,
+            path="/",
+        )
+
+    return VerifyCodeResponse(verified=is_verified)
+
+# 아이디 찾기 라우터
 @router.post("/find_id")
 async def find_id_api(payload: EmailRequest, db: AsyncSession = Depends(get_db_session)):
     user_login_id = await find_id_from_email(db, payload.email)
@@ -375,7 +423,27 @@ async def find_id_api(payload: EmailRequest, db: AsyncSession = Depends(get_db_s
 
     return {"user_login_id": user_login_id}
 
+# 회원가입 작성시 로그인아이디가 중복되는 체크하는 함수
 @router.get("/sign_up/check_id")
 async def check_duplicate_id(login_id: str, db: AsyncSession = Depends(get_db_session)):
     is_duplicate = await is_duplicate_login_id(db, login_id)
     return {"is_duplicate": is_duplicate}
+
+# 비밀번호 변경 라우터
+@router.post("/find_pw/change_password", response_model=PasswordChangeResponse)
+async def change_password(
+    request: Request,
+    payload: PasswordChangeRequest,
+    db: AsyncSession = Depends(get_db_session)
+):
+    verified_payload = await check_password_token(request);
+    print(verified_payload)
+    # 비밀번호 변경 함수 호출
+    success = await update_user_password(db, verified_payload.user_login_id, payload.new_password)
+    if not success:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="비밀번호 변경 실패")
+
+    return PasswordChangeResponse(
+        success= success,
+        message= "성공적으로 비밀번호를 변경했습니다.",
+        )
