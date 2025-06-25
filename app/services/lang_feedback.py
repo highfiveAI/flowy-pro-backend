@@ -3,6 +3,28 @@ from collections import Counter
 from langchain_openai import ChatOpenAI
 import re
 
+# 다양한 안건 입력을 비동기로 분리하는 함수
+def _sync_split_agenda(agenda: str):
+    items = re.split(r'[\n\r]+', agenda)
+    result = []
+    for item in items:
+        sub_items = re.split(
+            r'(?:^|[\s])(?:'
+            r'\d+[.)．:]\s*|'
+            r'[a-zA-Z][.)．:]\s*|'
+            r'[가-힣ㄱ-ㅎ][.)．:]\s*'
+            r')', item)
+        for sub in sub_items:
+            for s in sub.split(','):
+                s = s.strip()
+                if s:
+                    result.append(s)
+    return [r for r in result if r]
+
+async def split_agenda(agenda: str):
+    # 실제로는 동기 함수지만, 향후 확장성 위해 async로 래핑
+    return _sync_split_agenda(agenda)
+
 async def feedback_agent(subject, chunks, tag_result, attendees_list=None, agenda=None, meeting_date=None, meeting_duration_minutes=None):
     print(f"[lang_feedback] meeting_duration_minutes: {meeting_duration_minutes}", flush=True)
     score_char_count = {0: 0, 1: 0, 2: 0, 3: 0}
@@ -118,7 +140,7 @@ async def feedback_agent(subject, chunks, tag_result, attendees_list=None, agend
     missing_agenda_issues = None
     if agenda:
         if isinstance(agenda, str):
-            agenda_items = [a.strip() for a in agenda.split(',') if a.strip()]
+            agenda_items = await split_agenda(agenda)
         else:
             agenda_items = agenda
         discussed = []
