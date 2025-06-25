@@ -29,7 +29,8 @@ from app.crud.crud_user import (
     get_signup_status_or_raise_to_login_page,
     is_duplicate_login_id,
     get_user_by_login_id_and_email,
-    update_user_password
+    update_user_password,
+    get_user_by_id
 )
 from app.crud.crud_company import get_signup_meta
 from app.db.db_session import get_db_session
@@ -155,7 +156,7 @@ async def login(user: LoginInfo, response: Response, db: AsyncSession = Depends(
         httponly=True,       # JavaScript에서 접근 불가
         secure=COOKIE_SECURE,        # 배포 시에는 반드시 True (HTTPS에서만 전송)
         samesite=COOKIE_SAMESITE,      # 또는 "strict", "none"
-        max_age=3600,        # 쿠키 유지 시간 (초) – 1시간
+        max_age=1800,        # 쿠키 유지 시간 (초) – 30분
         path="/",            # 쿠키가 적용될 경로
         
     )
@@ -238,7 +239,7 @@ async def google_callback(request: Request, response: Response, db: AsyncSession
             httponly=True,
             secure=COOKIE_SECURE,
             samesite=COOKIE_SAMESITE,
-            max_age=3600,
+            max_age=1800,
             path="/", 
         )
         return redirect_response
@@ -267,7 +268,7 @@ async def google_callback(request: Request, response: Response, db: AsyncSession
         httponly=True,
         secure=COOKIE_SECURE,
         samesite=COOKIE_SAMESITE,
-        max_age=3600,
+        max_age=1800,
         path="/", 
     )
 
@@ -309,17 +310,49 @@ async def read_one_user(
 # 마이페이지 유저 정보 업데이트 라우터
 @router.put("/update")
 async def update_user(
-    # request: Request,
+    response: Response,
     user_update: UserUpdateRequest,
     token_user = Depends(check_access_token),
-    session: AsyncSession = Depends(get_db_session)
+    db: AsyncSession = Depends(get_db_session)
 ):
+    user_data = await update_user_info(token_user.id, user_update, db)
+    
+    # DB에서 최신 사용자 정보 조회
+    auth_user = await get_user_by_id(db, user_data['user_id'])
+    if not auth_user:
+        raise HTTPException(status_code=401, detail="Invalid User")
 
-    user_data = await update_user_info(token_user.id, user_update, session)
-    return {
+    payload = TokenPayload(
+        sub=str(auth_user.user_id),
+        id=str(auth_user.user_id),
+        name=auth_user.user_name,
+        email=auth_user.user_email,
+        login_id=auth_user.user_login_id,
+        sysrole=str(auth_user.user_sysrole_id),
+    )
+
+    access_token = await create_access_token(
+        data=payload.dict(),
+        expires_delta=timedelta(minutes=30)
+    )
+
+    response = JSONResponse(content={
         "message": "User updated successfully",
-        "user": user_data
-    }
+        "user": payload.dict()
+    })
+
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        max_age=1800,
+        path="/",
+    )
+
+    return response
+
 
 # 마이페이지 유저 식별 라우터
 @router.post("/mypage/check")

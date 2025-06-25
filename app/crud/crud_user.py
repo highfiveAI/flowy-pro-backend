@@ -186,12 +186,7 @@ async def update_user_info(user_id: str, user_update: UserUpdateRequest, session
         raise HTTPException(status_code=404, detail="User not found")
 
     update_data = user_update.dict(exclude_unset=True)
-    # print("[DEBUG] update_data before hash:", update_data)
-
-    if "user_password" in update_data and update_data["user_password"]:
-        update_data["user_password"] = pwd_context.hash(update_data["user_password"])
-        # print("[DEBUG] hashed user_password:", update_data["user_password"])
-
+  
     # update_data를 사용해서 DB에 저장
     for key, value in update_data.items():
         # print(f"[DEBUG] setattr: {key} = {value}")
@@ -266,6 +261,7 @@ async def get_user_by_login_id_and_email(
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
 
+# 유저 비밀번호 변경하는 함수
 async def update_user_password(db: AsyncSession, user_login_id: str, new_password: str) -> bool:
     # 비밀번호 해시 생성
     hashed_password = pwd_context.hash(new_password)
@@ -286,3 +282,17 @@ async def update_user_password(db: AsyncSession, user_login_id: str, new_passwor
         await db.rollback()
         # 로그 남기기 등 필요
         return False
+
+# 유저 id를 통해 정보를 찾는 함수
+async def get_user_by_id(db: AsyncSession, user_id: str):
+    stmt = (
+        select(FlowyUser)
+        .where(FlowyUser.user_id == user_id)
+    )
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return user
