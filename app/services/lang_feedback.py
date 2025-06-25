@@ -3,7 +3,8 @@ from collections import Counter
 from langchain_openai import ChatOpenAI
 import re
 
-async def feedback_agent(subject, chunks, tag_result, attendees_list=None, agenda=None, meeting_date=None):
+async def feedback_agent(subject, chunks, tag_result, attendees_list=None, agenda=None, meeting_date=None, meeting_duration_minutes=None):
+    print(f"[lang_feedback] meeting_duration_minutes: {meeting_duration_minutes}", flush=True)
     score_char_count = {0: 0, 1: 0, 2: 0, 3: 0}
     total_chars = 0
     for s in tag_result:
@@ -34,10 +35,17 @@ async def feedback_agent(subject, chunks, tag_result, attendees_list=None, agend
                 prev = idx
         chit_chat_ranges.append((start, prev))
     small_talk = []
-    for start, end in chit_chat_ranges:
-        start_min = start + 1
-        end_min = end + 1
-        small_talk.append(f"{start_min}분~{end_min}분 구간에서 관련 없는 대화가 많았습니다.")
+    if meeting_duration_minutes is not None and len(scores) > 0:
+        min_per_sentence = meeting_duration_minutes / len(scores)
+        for start, end in chit_chat_ranges:
+            start_min = round((start) * min_per_sentence + 1, 1)
+            end_min = round((end + 1) * min_per_sentence, 1)
+            small_talk.append(f"{start_min}분~{end_min}분 구간에서 관련 없는 대화가 많았습니다.")
+    else:
+        for start, end in chit_chat_ranges:
+            start_min = start + 1
+            end_min = end + 1
+            small_talk.append(f"{start_min}분~{end_min}분 구간에서 관련 없는 대화가 많았습니다.")
     if not small_talk:
         small_talk = ["잡담 구간이 뚜렷하게 나타나지 않았습니다."]
 
