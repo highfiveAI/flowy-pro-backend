@@ -189,3 +189,12 @@ async def get_project_meetings(db: AsyncSession, project_id: str):
     result = await db.execute(stmt)
     meetings = result.all()
     return meetings
+
+async def get_role_id_by_user_and_project(db: AsyncSession, user_id: str, project_id: str) -> str:
+    stmt = select(ProjectUser.role_id).where(
+        ProjectUser.user_id == user_id,
+        ProjectUser.project_id == project_id
+    )
+    result = await db.execute(stmt)
+    role_id = result.scalar_one_or_none()
+    return str(role_id) if role_id else None
