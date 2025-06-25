@@ -51,11 +51,11 @@ async def run_stt_in_background(
     meeting_title: str,
     meeting_agenda: str,
     meeting_date: str,
-    # host_id: str,
+    host_id: str,
     host_name: str,
     host_email: str,
     host_role: str,
-    # attendee_ids: list,
+    attendees_ids: list,
     attendees_name: list,
     attendees_email: list,
     attendees_role: list,
@@ -78,11 +78,13 @@ async def run_stt_in_background(
             for item in items:
                 result.extend([i.strip() for i in item.split(",") if i.strip()])
             return result
+        ids = split_items(attendees_ids)
         names = split_items(attendees_name)
         emails = split_items(attendees_email)
         roles = split_items(attendees_role)
         attendees_list = [
             {
+                "id": host_id,
                 "name": host_name,
                 "email": host_email,
                 "role": host_role,
@@ -90,12 +92,13 @@ async def run_stt_in_background(
             }
         ] + [
             {
+                "id": i,
                 "name": n,
                 "email": e,
                 "role": r,
                 "is_host": False
             }
-            for n, e, r in zip(names, emails, roles)
+            for i, n, e, r in zip(ids, names, emails, roles)
         ]
         def get_audio_duration_minutes(file_path):
             try:
@@ -119,12 +122,13 @@ async def run_stt_in_background(
             meeting_date=meeting_date_obj,
             meeting_audio_path=temp_path
         )
+        all_ids = [host_id] + list(ids)
         all_names = [host_name] + list(names)
         all_emails = [host_email] + list(emails)
         all_roles = [HOST_ROLE_ID] + [ATTENDEE_ROLE_ID] * len(names)
-        for name, email, role_id in zip(all_names, all_emails, all_roles):
+        for id, name, email, role_id in zip(all_ids, all_names, all_emails, all_roles):
             user = await db.execute(
-                select(FlowyUser).where(FlowyUser.user_name == name, FlowyUser.user_email == email)
+                select(FlowyUser).where(FlowyUser.user_id == id)
             )
             user_obj = user.scalar_one_or_none()
             if not user_obj:
@@ -181,9 +185,11 @@ async def stt_api(
     meeting_title: str = Form(...),
     meeting_agenda: str = Form(...),
     meeting_date: str = Form(...),
+    host_id: str = Form(...),
     host_name: str = Form(...),
     host_email: str = Form(...),
     host_role: str = Form(...),
+    attendees_ids: List[str] = Form(...),
     attendees_name: List[str] = Form(...),
     attendees_email: List[str] = Form(...),
     attendees_role: List[str] = Form(...),
@@ -202,9 +208,11 @@ async def stt_api(
         meeting_title,
         meeting_agenda,
         meeting_date,
+        host_id,
         host_name,
         host_email,
         host_role,
+        attendees_ids,
         attendees_name,
         attendees_email,
         attendees_role,
