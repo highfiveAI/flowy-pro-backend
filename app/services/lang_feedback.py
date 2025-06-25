@@ -37,10 +37,43 @@ async def feedback_agent(subject, chunks, tag_result, attendees_list=None, agend
     small_talk = []
     if meeting_duration_minutes is not None and len(scores) > 0:
         min_per_sentence = meeting_duration_minutes / len(scores)
+        small_talk_ranges = []
         for start, end in chit_chat_ranges:
-            start_min = round((start) * min_per_sentence + 1, 1)
+            start_min = round(start * min_per_sentence, 1)
             end_min = round((end + 1) * min_per_sentence, 1)
-            small_talk.append(f"{start_min}분~{end_min}분 구간에서 관련 없는 대화가 많았습니다.")
+            end_min = min(end_min, meeting_duration_minutes)
+            s, e = sorted([start_min, end_min])
+            small_talk_ranges.append((s, e))
+        # 병합 함수
+        def merge_ranges(ranges):
+            if not ranges:
+                return []
+            ranges = sorted(ranges)
+            merged = [ranges[0]]
+            for current in ranges[1:]:
+                prev = merged[-1]
+                if current[0] <= prev[1]:
+                    merged[-1] = (prev[0], max(prev[1], current[1]))
+                else:
+                    merged.append(current)
+            return merged
+        merged_ranges = merge_ranges(small_talk_ranges)
+        n = len(merged_ranges)
+        if n == 0:
+            small_talk = ["잡담 구간이 뚜렷하게 나타나지 않았습니다."]
+        elif n <= 3:
+            # 1번: 모두 구체적으로
+            small_talk = [
+                ", ".join([f"{round(s,1)}분~{round(e,1)}분" for s, e in merged_ranges]) + " 구간에서 관련 없는 대화가 많았습니다."
+            ]
+        elif n <= 6:
+            # 2번: 대표 2개만 + 등
+            details = ", ".join([f"{round(s,1)}~{round(e,1)}분" for s, e in merged_ranges[:2]])
+            small_talk = [f"총 {n}개의 잡담 구간({details} 등)에서 관련 없는 대화가 많았습니다."]
+        else:
+            # 3번: 대표 3개만 + 외 N개
+            details = ", ".join([f"{round(s,1)}~{round(e,1)}분" for s, e in merged_ranges[:3]])
+            small_talk = [f"총 {n}개의 잡담 구간({details} 외 {n-3}개)에서 관련 없는 대화가 많았습니다."]
     else:
         for start, end in chit_chat_ranges:
             start_min = start + 1
