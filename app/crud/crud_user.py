@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import select, asc, desc
+from sqlalchemy import select, update, asc, desc
 from app.models import FlowyUser, SignupLog, ProjectUser, Project, Role
 from app.schemas.signup_info import UserCreate, TokenPayload
 from app.schemas.mypage import UserUpdateRequest, UserWithCompanyInfo
@@ -186,12 +186,7 @@ async def update_user_info(user_id: str, user_update: UserUpdateRequest, session
         raise HTTPException(status_code=404, detail="User not found")
 
     update_data = user_update.dict(exclude_unset=True)
-    # print("[DEBUG] update_data before hash:", update_data)
-
-    if "user_password" in update_data and update_data["user_password"]:
-        update_data["user_password"] = pwd_context.hash(update_data["user_password"])
-        # print("[DEBUG] hashed user_password:", update_data["user_password"])
-
+  
     # update_data를 사용해서 DB에 저장
     for key, value in update_data.items():
         # print(f"[DEBUG] setattr: {key} = {value}")
@@ -253,3 +248,51 @@ async def is_duplicate_login_id(db: AsyncSession, login_id: str) -> bool:
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
     return user is not None
+
+async def get_user_by_login_id_and_email(
+    db: AsyncSession,
+    user_login_id: str,
+    email: str
+) -> FlowyUser | None:
+    stmt = select(FlowyUser).where(
+        FlowyUser.user_login_id == user_login_id,
+        FlowyUser.user_email == email
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+# 유저 비밀번호 변경하는 함수
+async def update_user_password(db: AsyncSession, user_login_id: str, new_password: str) -> bool:
+    # 비밀번호 해시 생성
+    hashed_password = pwd_context.hash(new_password)
+
+    # 업데이트 쿼리 작성
+    stmt = (
+        update(FlowyUser)
+        .where(FlowyUser.user_login_id == user_login_id)
+        .values(user_password=hashed_password)
+        .execution_options(synchronize_session="fetch")
+    )
+
+    try:
+        await db.execute(stmt)
+        await db.commit()
+        return True
+    except Exception as e:
+        await db.rollback()
+        # 로그 남기기 등 필요
+        return False
+
+# 유저 id를 통해 정보를 찾는 함수
+async def get_user_by_id(db: AsyncSession, user_id: str):
+    stmt = (
+        select(FlowyUser)
+        .where(FlowyUser.user_id == user_id)
+    )
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return user
