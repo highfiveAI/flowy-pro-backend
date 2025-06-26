@@ -8,10 +8,10 @@ from langgraph.pregel import Pregel
 from app.core.config import settings
 from app.schemas.search import SearchState
 
-openai_api_key = settings.OPENAI_API_KEY
+google_api_key = settings.GOOGLE_API_KEY
 serperapi_api_key = settings.SERPAPI_API_KEY
 
-if not openai_api_key or not serperapi_api_key:
+if not google_api_key or not serperapi_api_key:
     print("Warning: API keys not loaded.")
 
 # 1. 환경 설정 및 LLM 초기화
@@ -64,7 +64,7 @@ search_graph = graph.compile()
 # 5. 실행 예시
 async def run():
     result = await search_graph.ainvoke({"query": "filetype:pdf resume template"})
-    print("\n✅ 유효한 링크 결과:")
+    print("\n 유효한 링크 결과:")
     for link in result.get("valid_links", []):
         print(link)
 

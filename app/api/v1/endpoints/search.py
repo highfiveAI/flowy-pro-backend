@@ -1,10 +1,14 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+from app.services.search_service.lang_array_search import run_batch_keyword_search
 from app.services.search_service.lang_search import run_langchain_search
 from app.services.search_service.lang_graph_search import search_graph
+from typing import List, Dict
 from pydantic import BaseModel
 
 router = APIRouter()
 
+class KeywordRequest(BaseModel):
+    keywords: List[str]
 
 class SearchRequest(BaseModel):
     query: str
@@ -21,3 +25,13 @@ async def search_resume_links(payload: SearchRequest):
     return {
         "valid_links": result.get("valid_links", [])
     }
+
+@router.post("/search-links", response_model=Dict[str, List[str]])
+async def search_links(request: KeywordRequest):
+    try:
+        results = await run_batch_keyword_search(
+            keywords=request.keywords,
+        )
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"검색 중 오류 발생: {str(e)}")

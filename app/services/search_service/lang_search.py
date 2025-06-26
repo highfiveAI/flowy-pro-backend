@@ -4,13 +4,16 @@ from langchain.tools import tool
 from langchain.agents import initialize_agent
 from langchain.agents.agent_types import AgentType
 from langchain_community.utilities import SerpAPIWrapper
-from langchain_openai import ChatOpenAI
+# from langchain_openai import ChatOpenAI
 from app.core.config import settings
+from langchain_google_genai import ChatGoogleGenerativeAI
 
-openai_api_key = settings.OPENAI_API_KEY
+# openai_api_key = settings.OPENAI_API_KEY
+google_api_key = settings.GOOGLE_API_KEY
 serperapi_api_key = settings.SERPAPI_API_KEY
 
-if not openai_api_key or not serperapi_api_key:
+# if not openai_api_key or not serperapi_api_key:
+if not google_api_key or not serperapi_api_key:
     print("Warning: API keys not loaded.")
 
 search = SerpAPIWrapper()
@@ -39,7 +42,14 @@ async def search_and_extract_links(query: str) -> str:
 
 tools = [search_and_extract_links, check_link_validity]
 
-llm = ChatOpenAI(temperature=0)
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash",
+    temperature=0,
+    max_tokens=None,
+    timeout=None,
+    max_retries=2,
+    # other params...
+)
 
 agent = initialize_agent(
     tools,
