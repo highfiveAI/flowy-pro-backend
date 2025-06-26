@@ -43,8 +43,10 @@ async def update_calendar(
 
 async def insert_meeting_calendar(
     db: AsyncSession,
-    user_id: UUID,
-    project_id: UUID,
+    # user_id: UUID,
+    # project_id: UUID,
+    user_id: str,
+    project_id: str,
     title: str,
     start: datetime,
     calendar_type: str = "meeting",
