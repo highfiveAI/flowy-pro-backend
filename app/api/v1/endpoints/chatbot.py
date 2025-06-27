@@ -35,10 +35,12 @@ async def chat_with_vector_search(req: ChatRequest, db: AsyncSession = Depends(g
     scenario = await search_similar_scenario(db, query_embedding)
 
     if scenario:
+        print(scenario)
         return {
             "match": True,
             "scenario_name": scenario.scenario_name,
-            "content": scenario.content
+            "content": scenario.content,
+            "similarity": scenario.similarity,
         }
     else:
         return {
