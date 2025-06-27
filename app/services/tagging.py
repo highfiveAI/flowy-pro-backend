@@ -7,9 +7,11 @@ from app.services.lang_summary import lang_summary
 from app.services.lang_feedback import feedback_agent
 from app.services.lang_role import assign_roles
 from app.services.lang_todo import extract_todos
+from app.services.lang_previewmeeting import lang_previewmeeting
 from typing import List, Dict, Any
 from app.crud.crud_meeting import insert_summary_log, insert_task_assign_log, insert_feedback_log, get_feedback_type_map
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.notify_email_service import send_meeting_email
 from openai import AsyncOpenAI
 from app.services.calendar_service.calendar_crud import insert_calendar_from_task
@@ -84,7 +86,7 @@ async def gpt_split_sentences(text: str) -> list:
         print(f"[gpt_split_sentences] 오류: {e}", flush=True)
         return [text]
 
-async def tag_chunks_async(project_name: str, subject: str, chunks: list, attendees_list: List[Dict[str, Any]] = None, agenda: str = None, meeting_date: str = None, db: Session = None, meeting_id: str = None, meeting_duration_minutes: float = None) -> dict:
+async def tag_chunks_async(project_name: str, subject: str, chunks: list, attendees_list: List[Dict[str, Any]] = None, agenda: str = None, meeting_date: str = None, db: AsyncSession = None, meeting_id: str = None, meeting_duration_minutes: float = None) -> dict:
     print(f"[tag_chunks] 전달받은 subject: {subject}", flush=True)
     print(f"[tag_chunks] 전달받은 attendees_list: {attendees_list}", flush=True)
     print(f"[tag_chunks] 전달받은 agenda: {agenda}", flush=True)
@@ -142,6 +144,93 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
     try:
         # lang_summary 호출
         summary_result = await lang_summary(subject, chunks, sentence_scores, attendees_list, agenda, meeting_date) if attendees_list is not None else await lang_summary(subject, chunks, sentence_scores, None, agenda, meeting_date)
+        
+        # lang_previewmeeting 호출 (예정된 회의 추출)
+        if db is not None and meeting_id is not None:
+            try:
+                print(f"[tagging.py] === 예정된 회의 처리 시작 ===", flush=True)
+                print(f"[tagging.py] meeting_id: {meeting_id}", flush=True)
+                
+                # meeting_id로 project_id 조회
+                from app.models.meeting import Meeting
+                from sqlalchemy import select
+                
+                stmt = select(Meeting).where(Meeting.meeting_id == meeting_id)
+                result = await db.execute(stmt)
+                meeting_record = result.scalar_one_or_none()
+                
+                if meeting_record:
+                    project_id = str(meeting_record.project_id)
+                    print(f"[tagging.py] 조회된 project_id: {project_id}", flush=True)
+                    
+                    # lang_previewmeeting 호출
+                    print(f"[tagging.py] lang_previewmeeting 호출 중...", flush=True)
+                    preview_meeting_data = await lang_previewmeeting(
+                        summary_data=summary_result.get("agent_output", {}) if isinstance(summary_result, dict) else {},
+                        subject=subject,
+                        attendees_list=attendees_list,
+                        project_id=project_id,
+                        meeting_date=meeting_date
+                    )
+                    
+                    print(f"[tagging.py] lang_previewmeeting 결과: {preview_meeting_data}", flush=True)
+                    
+                    # 예정된 회의가 있으면 Meeting 테이블에 insert
+                    if preview_meeting_data:
+                        print(f"[tagging.py] === DB INSERT 시작 ===", flush=True)
+                        new_meeting = Meeting(
+                            project_id=preview_meeting_data["project_id"],
+                            meeting_title=preview_meeting_data["meeting_title"],
+                            meeting_date=preview_meeting_data["meeting_date"],
+                            meeting_audio_path=preview_meeting_data["meeting_audio_path"]
+                        )
+                        print(f"[tagging.py] 생성된 Meeting 객체:", flush=True)
+                        print(f"  - project_id: {new_meeting.project_id}", flush=True)
+                        print(f"  - meeting_title: {new_meeting.meeting_title}", flush=True)
+                        print(f"  - meeting_date: {new_meeting.meeting_date}", flush=True)
+                        print(f"  - meeting_audio_path: {new_meeting.meeting_audio_path}", flush=True)
+                        
+                        db.add(new_meeting)
+                        await db.commit()
+                        await db.refresh(new_meeting)
+                        
+                        print(f"[tagging.py] === Meeting INSERT 완료 ===", flush=True)
+                        print(f"[tagging.py] 새로 생성된 meeting_id: {new_meeting.meeting_id}", flush=True)
+                        
+                        # MeetingUser 테이블에 참석자들 insert
+                        if attendees_list:
+                            print(f"[tagging.py] === MeetingUser INSERT 시작 ===", flush=True)
+                            from app.models.meeting_user import MeetingUser
+                            
+                            # role_id 정의
+                            HOST_ROLE_ID = "20ea65e2-d3b7-4adb-a8ce-9e67a2f21999"  # is_host True
+                            MEMBER_ROLE_ID = "a55afc22-b4c1-48a4-9513-c66ff6ed3965"  # is_host False
+                            
+                            for attendee in attendees_list:
+                                user_id = attendee.get('id')
+                                is_host = attendee.get('is_host', False)
+                                role_id = HOST_ROLE_ID if is_host else MEMBER_ROLE_ID
+                                
+                                print(f"[tagging.py] 참석자 추가: {attendee.get('name')} (user_id: {user_id}, is_host: {is_host})", flush=True)
+                                
+                                meeting_user = MeetingUser(
+                                    user_id=user_id,
+                                    meeting_id=new_meeting.meeting_id,
+                                    role_id=role_id
+                                )
+                                db.add(meeting_user)
+                            
+                            await db.commit()
+                            print(f"[tagging.py] === MeetingUser INSERT 완료 ===", flush=True)
+                            print(f"[tagging.py] 총 {len(attendees_list)}명의 참석자 등록 완료", flush=True)
+                        
+                        print(f"[tagging.py] 예정된 회의 등록 완료: {preview_meeting_data['meeting_title']}", flush=True)
+                    else:
+                        print("[tagging.py] 예정된 회의 언급 없음", flush=True)
+                else:
+                    print(f"[tagging.py] project_id를 찾을 수 없음: meeting_id={meeting_id}", flush=True)
+            except Exception as e:
+                print(f"[tagging.py] 예정된 회의 처리 오류: {e}", flush=True)
         
         # lang_feedback 호출
         feedback_result = await feedback_agent(subject, chunks, sentence_scores, attendees_list, agenda, meeting_date, meeting_duration_minutes) if attendees_list is not None else await feedback_agent(subject, chunks, sentence_scores, None, agenda, meeting_date, meeting_duration_minutes)

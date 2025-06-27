@@ -101,7 +101,7 @@ async def lang_summary(subject, chunks, tag_result, attendees_list=None, agenda=
 
     # JSON 파싱 시도 (코드블록 제거)
     try:
-        content = agent_output.strip()
+        content = str(agent_output).strip()
         if content.startswith("```json"):
             content = content.removeprefix("```json").removesuffix("```").strip()
         match = re.search(r'\{.*\}', content, re.DOTALL)
