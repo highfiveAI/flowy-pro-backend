@@ -23,6 +23,20 @@ async def get_calendars_by_user_and_project(user_id: UUID, project_id: UUID, db:
     return result.scalars().all()
 
 
+async def get_calendars_by_user_and_project_filtered(user_id: UUID, project_id: UUID, db: AsyncSession) -> List[Calendar]:
+    """
+    사용자와 프로젝트별 캘린더 조회 (거부된 예정 회의 제외)
+    """
+    result = await db.execute(
+        select(Calendar).where(
+            (Calendar.user_id == user_id) & 
+            (Calendar.project_id == project_id) &
+            (Calendar.status != 'rejected')  # 거부된 예정 회의는 캘린더에 표시하지 않음
+        )
+    )
+    return result.scalars().all()
+
+
 async def update_calendar(
     calendar_id: UUID,
     completed: bool,
