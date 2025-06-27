@@ -19,4 +19,3 @@ async def search_similar_scenario(db: AsyncSession, query_embedding: list[float]
             scenario.similarity = similarity
             return scenario
     return None
-

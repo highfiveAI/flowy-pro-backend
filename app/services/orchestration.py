@@ -1,8 +1,8 @@
 from langchain.agents import Tool, initialize_agent
 from langchain.agents.agent_types import AgentType
 from langchain_community.chat_models import ChatOpenAI
+from app.services.search_service.lang_search import run_langchain_search
 from langchain_google_genai import ChatGoogleGenerativeAI
-from app.services.lang_search import run_langchain_search
 from app.services.docs_service.docs_recommend import run_doc_recommendation
 from app.core.config import settings
 import re
