@@ -53,6 +53,7 @@ class SummaryAndTaskRequest(BaseModel):
 
 class MeetingUserCreateRequest(BaseModel):
     user_id: str  # UUID로 받을 경우 UUID로 변경
+    role_id: str
 
 class MeetingCreateRequest(BaseModel):
     project_id: str

@@ -18,6 +18,7 @@ from app.models.sysrole import Sysrole
 from app.models.task_assign_log import TaskAssignLog
 from app.models.prompt_log import PromptLog
 from app.models.calendar import Calendar
+from app.models.scenario import Scenario
 # 다른 모델들...
 
-__all__ = ["CompanyPosition", "FlowyUser", "Interdoc", "Company", "Company", "DraftLog", "Feedback", "FeedbackType", "MeetingUser", "Meeting", "ProfileImg", "ProjectUser", "Project", "Role", "SignupLog", "SummaryLog", "Sysrole", "TaskAssignLog", "PromptLog", "Calendar"]
+__all__ = ["CompanyPosition", "FlowyUser", "Interdoc", "Company", "Company", "DraftLog", "Feedback", "FeedbackType", "MeetingUser", "Meeting", "ProfileImg", "ProjectUser", "Project", "Role", "SignupLog", "SummaryLog", "Sysrole", "TaskAssignLog", "PromptLog", "Calendar", "Scenario"]

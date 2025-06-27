@@ -8,7 +8,9 @@ class Settings:
     PROJECT_NAME: str = "FastAPI Project"
     VERSION: str = "0.1.0"
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
+    GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY")
     SERPAPI_API_KEY: str = os.getenv("SERPAPI_API_KEY")
+    GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
     
     # 비동기 데이터베이스 연결 문자열
     CONNECTION_STRING: str = os.getenv("CONNECTION_STRING", "").replace(
