@@ -81,3 +81,4 @@ class DraftLogResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
