@@ -164,21 +164,11 @@ async def create_meeting_with_users(
             meeting_audio_path=meeting_data.meeting_audio_path
         )
         for user in meeting_data.users:
-            role_id = await get_role_id_by_user_and_project(
-                db=db,
-                user_id=user.user_id,
-                project_id=meeting_data.project_id
-            )
-            if not role_id:
-                return JSONResponse(
-                    status_code=400,
-                    content={"detail": f"user_id {user.user_id}의 role_id를 찾을 수 없습니다."}
-                )
             await insert_meeting_user(
                 db=db,
                 meeting_id=meeting.meeting_id,
                 user_id=user.user_id,
-                role_id=role_id
+                role_id=user.role_id
             )
             await insert_meeting_calendar(
                 db=db,
