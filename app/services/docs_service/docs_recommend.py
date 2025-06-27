@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from app.core.config import settings
 import aiopg
 import json
@@ -14,10 +15,18 @@ from typing import List, Dict, Any
 # .env 파일 로드
 load_dotenv()
 
-# API 키 확인
-openai_api_key = os.getenv("OPENAI_API_KEY")
-if not openai_api_key:
-    raise ValueError("OPENAI_API_KEY가 설정되지 않았습니다. .env 파일을 확인해주세요.")
+# Google API Key 설정 (환경 변수 또는 settings.py에서 가져옴)
+# `os.getenv`를 사용하여 환경 변수를 우선적으로 확인합니다.
+google_api_key = os.getenv("GOOGLE_API_KEY", settings.GOOGLE_API_KEY)
+if not google_api_key:
+    raise ValueError("GOOGLE_API_KEY is not set in environment variables or settings.")
+
+# # Gemini Pro 모델 초기화
+# # Note: 이제 llm 변수가 ChatGoogleGenerativeAI 인스턴스입니다.
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0, google_api_key=google_api_key)
+
+openai_api_key = settings.OPENAI_API_KEY
+llm = ChatOpenAI(temperature=0)
 
 # AWS 설정
 AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY")
@@ -133,8 +142,6 @@ async def recommend_documents(role_text: str, k: int = 1) -> dict:
     print(f"[recommend_documents] 문서 추천 실행: {role_text}")
     
     try:
-        # LLM을 사용하여 더 나은 추천을 위한 프롬프트 생성
-        llm = ChatOpenAI(model="gpt-4o", temperature=0)
         
         # 문서 검색
         docs = await direct_vector_search(role_text, k=k)

@@ -3,13 +3,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.db_session import get_db_session
 from app.crud.crud_user import get_all_users
 from app.schemas.signup_info import TokenPayload
-from app.schemas.project import ProjectCreate, ProjectNameUpdate, TaskAssignLogCreate, SummaryLogCreate, ProjectUpdateRequestBody, SummaryAndTaskRequest
+from app.schemas.project import ProjectCreate, ProjectNameUpdate, TaskAssignLogCreate, SummaryLogCreate, ProjectUpdateRequestBody, SummaryAndTaskRequest, MeetingCreateRequest
 from app.services.signup_service.auth import check_access_token
 from app.crud.crud_project import get_project_users_with_projects_by_user_id, get_meetings_with_users_by_project_id, create_project, get_meeting_detail_with_project_and_users, delete_project_by_id, update_project_name_by_id, insert_task_assign_log, insert_summary_log, update_project_with_users, insert_summary_and_task_logs
 from uuid import UUID
 import traceback
 from fastapi.responses import JSONResponse
-from app.services.calendar_service.calendar_crud import update_calendar_from_todos
+from app.services.calendar_service.calendar_crud import update_calendar_from_todos, insert_meeting_calendar
+from app.crud.crud_meeting import insert_meeting, insert_meeting_user, get_role_id_by_user_and_project
+from app.models.flowy_user import FlowyUser
+from datetime import datetime
 
 router = APIRouter()
 
@@ -139,3 +142,46 @@ async def update_project(
     if not success:
         raise HTTPException(status_code=404, detail="Project not found")
     return {"message": "Project updated"}
+
+@router.post("/meeting/create")
+async def create_meeting_with_users(
+    meeting_data: MeetingCreateRequest,
+    db: AsyncSession = Depends(get_db_session)
+):
+    try:
+        meeting_date_obj = datetime.fromisoformat(meeting_data.meeting_date)
+
+        # 👉 timezone-aware일 경우, tz를 제거하여 naive datetime으로 변환
+        if meeting_date_obj.tzinfo is not None:
+            meeting_date_obj = meeting_date_obj.replace(tzinfo=None)
+
+        meeting = await insert_meeting(
+            db=db,
+            project_id=meeting_data.project_id,
+            meeting_title=meeting_data.meeting_title,
+            meeting_agenda=meeting_data.meeting_agenda,
+            meeting_date=meeting_date_obj,
+            meeting_audio_path=meeting_data.meeting_audio_path
+        )
+        for user in meeting_data.users:
+            await insert_meeting_user(
+                db=db,
+                meeting_id=meeting.meeting_id,
+                user_id=user.user_id,
+                role_id=user.role_id
+            )
+            await insert_meeting_calendar(
+                db=db,
+                user_id=user.user_id,
+                project_id=meeting_data.project_id,
+                title=meeting_data.meeting_title,
+                start=meeting_date_obj
+            )
+        return {"meeting_id": meeting.meeting_id}
+    except Exception as e:
+        traceback_str = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
+        print("🔥 서버 에러:", traceback_str)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": str(e), "traceback": traceback_str}
+        )

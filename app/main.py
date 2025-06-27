@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 # , UploadFile, File, Form, HTTPException, Request, Depends
 import os
+import logging
 from dotenv import load_dotenv
 load_dotenv()
 # from app.api.stt import stt_from_file
@@ -12,6 +13,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from app.api.v1.api import api_router
 
+# 로깅 설정
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 app = FastAPI(debug=True)
 
