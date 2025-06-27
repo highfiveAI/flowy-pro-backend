@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.db_session import get_db_session
 from app.services.chatbot_service.scenario import agent
-
+from typing import Union
 from app.services.chatbot_service.scenario_crud import search_similar_scenario
 from langchain.embeddings import HuggingFaceEmbeddings
 
@@ -18,13 +18,23 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     message: str
 
+class ChatRagResponse(BaseModel):
+    match: bool
+    scenario_name: str
+    content: str
+    similarity: float
+
+class ErrorResponse(BaseModel):
+    match: bool
+    content: str
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(req: ChatRequest):
     user_input = req.message
     response = await agent.arun(user_input)
     return ChatResponse(message=response)
 
-@router.post("/chat/embed")
+@router.post("/chat/embed", response_model=Union[ChatRagResponse, ErrorResponse])
 async def chat_with_vector_search(req: ChatRequest, db: AsyncSession = Depends(get_db_session)):
     user_input = req.message
 
@@ -35,15 +45,31 @@ async def chat_with_vector_search(req: ChatRequest, db: AsyncSession = Depends(g
     scenario = await search_similar_scenario(db, query_embedding)
 
     if scenario:
-        print(scenario)
-        return {
-            "match": True,
-            "scenario_name": scenario.scenario_name,
-            "content": scenario.content,
-            "similarity": scenario.similarity,
-        }
+        # 3. 기본 시나리오 응답 내용
+        base_content = scenario.content
+
+        # 4. agent 도구를 통한 최신 정보 요약 (선택적)
+        try:
+            agent_response = await agent.arun(user_input)
+        except Exception as e:
+            agent_response = f"[에이전트 응답 오류: {e}]"
+
+        # 5. 두 내용을 합쳐서 반환
+        combined_content = (
+            f"[기본 시나리오 답변]\n{base_content}\n\n"
+            f"[관련 최신 정보]\n{agent_response}"
+        )
+
+        return ChatRagResponse(
+            match=True,
+            scenario_name=scenario.scenario_name,
+            content=combined_content,
+            similarity=scenario.similarity
+        )
+        
     else:
-        return {
-            "match": False,
-            "message": "유사한 시나리오를 찾을 수 없습니다."
-        }
+        return ErrorResponse(
+            match=False,
+            content="유사한 시나리오를 찾을 수 없습니다."
+        )
+
