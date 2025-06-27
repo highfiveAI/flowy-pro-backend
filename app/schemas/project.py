@@ -51,3 +51,15 @@ class SummaryAndTaskRequest(BaseModel):
     class Config:
         orm_mode = True
 
+class MeetingUserCreateRequest(BaseModel):
+    user_id: str  # UUID로 받을 경우 UUID로 변경
+    role_id: str
+
+class MeetingCreateRequest(BaseModel):
+    project_id: str
+    meeting_title: str
+    meeting_agenda: str
+    meeting_date: str  # ISO 포맷 문자열로 받음
+    meeting_audio_path: str = None
+    users: List[MeetingUserCreateRequest]
+

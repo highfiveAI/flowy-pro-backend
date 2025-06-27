@@ -3,7 +3,30 @@ from collections import Counter
 from langchain_openai import ChatOpenAI
 import re
 
-async def feedback_agent(subject, chunks, tag_result, attendees_list=None, agenda=None, meeting_date=None):
+# 다양한 안건 입력을 비동기로 분리하는 함수
+def _sync_split_agenda(agenda: str):
+    items = re.split(r'[\n\r]+', agenda)
+    result = []
+    for item in items:
+        sub_items = re.split(
+            r'(?:^|[\s])(?:'
+            r'\d+[.)．:]\s*|'
+            r'[a-zA-Z][.)．:]\s*|'
+            r'[가-힣ㄱ-ㅎ][.)．:]\s*'
+            r')', item)
+        for sub in sub_items:
+            for s in sub.split(','):
+                s = s.strip()
+                if s:
+                    result.append(s)
+    return [r for r in result if r]
+
+async def split_agenda(agenda: str):
+    # 실제로는 동기 함수지만, 향후 확장성 위해 async로 래핑
+    return _sync_split_agenda(agenda)
+
+async def feedback_agent(subject, chunks, tag_result, attendees_list=None, agenda=None, meeting_date=None, meeting_duration_minutes=None):
+    print(f"[lang_feedback] meeting_duration_minutes: {meeting_duration_minutes}", flush=True)
     score_char_count = {0: 0, 1: 0, 2: 0, 3: 0}
     total_chars = 0
     for s in tag_result:
@@ -34,10 +57,50 @@ async def feedback_agent(subject, chunks, tag_result, attendees_list=None, agend
                 prev = idx
         chit_chat_ranges.append((start, prev))
     small_talk = []
-    for start, end in chit_chat_ranges:
-        start_min = start + 1
-        end_min = end + 1
-        small_talk.append(f"{start_min}분~{end_min}분 구간에서 관련 없는 대화가 많았습니다.")
+    if meeting_duration_minutes is not None and len(scores) > 0:
+        min_per_sentence = meeting_duration_minutes / len(scores)
+        small_talk_ranges = []
+        for start, end in chit_chat_ranges:
+            start_min = round(start * min_per_sentence, 1)
+            end_min = round((end + 1) * min_per_sentence, 1)
+            end_min = min(end_min, meeting_duration_minutes)
+            s, e = sorted([start_min, end_min])
+            small_talk_ranges.append((s, e))
+        # 병합 함수
+        def merge_ranges(ranges):
+            if not ranges:
+                return []
+            ranges = sorted(ranges)
+            merged = [ranges[0]]
+            for current in ranges[1:]:
+                prev = merged[-1]
+                if current[0] <= prev[1]:
+                    merged[-1] = (prev[0], max(prev[1], current[1]))
+                else:
+                    merged.append(current)
+            return merged
+        merged_ranges = merge_ranges(small_talk_ranges)
+        n = len(merged_ranges)
+        if n == 0:
+            small_talk = ["잡담 구간이 뚜렷하게 나타나지 않았습니다."]
+        elif n <= 3:
+            # 1번: 모두 구체적으로
+            small_talk = [
+                ", ".join([f"{round(s,1)}분~{round(e,1)}분" for s, e in merged_ranges]) + " 구간에서 관련 없는 대화가 많았습니다."
+            ]
+        elif n <= 6:
+            # 2번: 대표 2개만 + 등
+            details = ", ".join([f"{round(s,1)}~{round(e,1)}분" for s, e in merged_ranges[:2]])
+            small_talk = [f"총 {n}개의 잡담 구간({details} 등)에서 관련 없는 대화가 많았습니다."]
+        else:
+            # 3번: 대표 3개만 + 외 N개
+            details = ", ".join([f"{round(s,1)}~{round(e,1)}분" for s, e in merged_ranges[:3]])
+            small_talk = [f"총 {n}개의 잡담 구간({details} 외 {n-3}개)에서 관련 없는 대화가 많았습니다."]
+    else:
+        for start, end in chit_chat_ranges:
+            start_min = start + 1
+            end_min = end + 1
+            small_talk.append(f"{start_min}분~{end_min}분 구간에서 관련 없는 대화가 많았습니다.")
     if not small_talk:
         small_talk = ["잡담 구간이 뚜렷하게 나타나지 않았습니다."]
 
@@ -77,7 +140,7 @@ async def feedback_agent(subject, chunks, tag_result, attendees_list=None, agend
     missing_agenda_issues = None
     if agenda:
         if isinstance(agenda, str):
-            agenda_items = [a.strip() for a in agenda.split(',') if a.strip()]
+            agenda_items = await split_agenda(agenda)
         else:
             agenda_items = agenda
         discussed = []
