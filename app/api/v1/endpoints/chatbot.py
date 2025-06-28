@@ -1,8 +1,9 @@
-from fastapi import FastAPI, Request, APIRouter, Depends
+from fastapi import FastAPI, Request, APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.db_session import get_db_session
 from app.services.chatbot_service.scenario import agent
+from app.services.chatbot_service.chatbot_agent import run_agent
 from typing import Union
 from app.services.chatbot_service.scenario_crud import search_similar_scenario
 from langchain.embeddings import HuggingFaceEmbeddings
@@ -27,6 +28,12 @@ class ChatRagResponse(BaseModel):
 class ErrorResponse(BaseModel):
     match: bool
     content: str
+
+class QueryRequest(BaseModel):
+    query: str
+
+class QueryResponse(BaseModel):
+    message: str
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(req: ChatRequest):
@@ -72,4 +79,12 @@ async def chat_with_vector_search(req: ChatRequest, db: AsyncSession = Depends(g
             match=False,
             content="유사한 시나리오를 찾을 수 없습니다."
         )
+
+@router.post("/chat/0.0.1")
+async def chat_endpoint(request: QueryRequest):
+    try:
+        response = await run_agent(request.query)
+        return response
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
