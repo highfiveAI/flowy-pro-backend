@@ -99,6 +99,7 @@ class AcceptMeetingRequest(BaseModel):
     agent_meeting_id: UUID
     meeting_title: Optional[str] = None
     meeting_date: Optional[datetime] = None
+    meeting_agenda: Optional[str] = None
 
 class RejectMeetingRequest(BaseModel):
     """예정 회의 거부 처리 요청"""

@@ -162,6 +162,29 @@ async def accept_meeting(
         await db.commit()
         await db.refresh(calendar_entry)
         
+        # ✅ 후속회의(agent_meeting_id) 업데이트
+        followup_meeting_stmt = select(Meeting).where(Meeting.meeting_id == agent_meeting_id)
+        followup_result = await db.execute(followup_meeting_stmt)
+        followup_meeting = followup_result.scalar_one_or_none()
+        
+        if followup_meeting:
+            # 사용자가 입력한 값으로 후속회의 정보 업데이트
+            if accept_request.meeting_title:
+                followup_meeting.meeting_title = accept_request.meeting_title
+            if accept_request.meeting_date:
+                # timezone 정보 제거
+                update_date = accept_request.meeting_date
+                if update_date.tzinfo is not None:
+                    update_date = update_date.replace(tzinfo=None)
+                followup_meeting.meeting_date = update_date
+            if accept_request.meeting_agenda:
+                followup_meeting.meeting_agenda = accept_request.meeting_agenda
+            
+            await db.commit()
+            print(f"[accept_meeting] 후속회의 업데이트 완료: {agent_meeting_id}", flush=True)
+        else:
+            print(f"[accept_meeting] 후속회의를 찾을 수 없음: {agent_meeting_id}", flush=True)
+        
         return {
             "success": True,
             "message": "예정 회의가 캘린더에 등록되었습니다.",
@@ -239,9 +262,14 @@ async def reject_meeting(
         await db.commit()
         await db.refresh(calendar_entry)
         
+        # ✅ 후속회의(agent_meeting_id) 삭제
+        await db.delete(agent_meeting)
+        await db.commit()
+        print(f"[reject_meeting] 후속회의 삭제 완료: {agent_meeting_id}", flush=True)
+        
         return {
             "success": True,
-            "message": "예정 회의가 거부되었습니다.",
+            "message": "예정 회의가 거부되고 삭제되었습니다.",
             "calendar_id": calendar_entry.calendar_id
         }
         
