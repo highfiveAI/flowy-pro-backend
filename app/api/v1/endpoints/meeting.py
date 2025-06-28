@@ -75,7 +75,7 @@ async def get_pending_meetings(
         ).where(
             and_(
                 Meeting.meeting_audio_path == 'app/none',
-                Meeting.project_id == project_id,  # 같은 프로젝트의 Agent 생성 회의
+                Meeting.parent_meeting_id == str(meeting_id),  # 현재 원본회의의 후속회의만
                 MeetingUser.user_id == user_id,
                 MeetingUser.role_id == HOST_ROLE_ID,
                 ~exists().where(Calendar.agent_meeting_id == str(meeting_id))  # 현재 회의 ID로 처리되었는지 확인
@@ -262,14 +262,15 @@ async def reject_meeting(
         await db.commit()
         await db.refresh(calendar_entry)
         
-        # ✅ 후속회의(agent_meeting_id) 삭제
-        await db.delete(agent_meeting)
+        # ✅ 후속회의(agent_meeting_id) 제목 업데이트 (삭제 대신)
+        agent_meeting.meeting_title = f"[거부됨] {agent_meeting.meeting_title}"
         await db.commit()
-        print(f"[reject_meeting] 후속회의 삭제 완료: {agent_meeting_id}", flush=True)
+        print(f"[reject_meeting] 후속회의 제목 업데이트 완료: {agent_meeting_id}", flush=True)
+        print(f"[reject_meeting] 업데이트된 제목: {agent_meeting.meeting_title}", flush=True)
         
         return {
             "success": True,
-            "message": "예정 회의가 거부되고 삭제되었습니다.",
+            "message": "예정 회의가 거부되었습니다.",
             "calendar_id": calendar_entry.calendar_id
         }
         

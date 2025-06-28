@@ -178,17 +178,25 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
                     # 예정된 회의가 있으면 Meeting 테이블에 insert
                     if preview_meeting_data:
                         print(f"[tagging.py] === DB INSERT 시작 ===", flush=True)
+                        
+                        # meeting_id를 String으로 변환하여 parent_meeting_id에 저장
+                        parent_meeting_id_str = str(meeting_id)
+                        print(f"[tagging.py] 원본 meeting_id: {meeting_id} (type: {type(meeting_id)})", flush=True)
+                        print(f"[tagging.py] parent_meeting_id로 저장할 값: {parent_meeting_id_str}", flush=True)
+                        
                         new_meeting = Meeting(
                             project_id=preview_meeting_data["project_id"],
                             meeting_title=preview_meeting_data["meeting_title"],
                             meeting_date=preview_meeting_data["meeting_date"],
-                            meeting_audio_path=preview_meeting_data["meeting_audio_path"]
+                            meeting_audio_path=preview_meeting_data["meeting_audio_path"],
+                            parent_meeting_id=parent_meeting_id_str  # 원본회의 ID를 String으로 변환하여 저장
                         )
                         print(f"[tagging.py] 생성된 Meeting 객체:", flush=True)
                         print(f"  - project_id: {new_meeting.project_id}", flush=True)
                         print(f"  - meeting_title: {new_meeting.meeting_title}", flush=True)
                         print(f"  - meeting_date: {new_meeting.meeting_date}", flush=True)
                         print(f"  - meeting_audio_path: {new_meeting.meeting_audio_path}", flush=True)
+                        print(f"  - parent_meeting_id: {new_meeting.parent_meeting_id}", flush=True)
                         
                         db.add(new_meeting)
                         await db.commit()
