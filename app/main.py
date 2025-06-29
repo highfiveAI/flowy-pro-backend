@@ -19,6 +19,11 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
+# SQLAlchemy 로깅 활성화
+logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
+logging.getLogger('sqlalchemy.pool').setLevel(logging.INFO)
+logging.getLogger('sqlalchemy.dialects').setLevel(logging.INFO)
+
 app = FastAPI(debug=True)
 
 # 허용할 프론트엔드 주소 (Vite는 보통 5173 포트)
