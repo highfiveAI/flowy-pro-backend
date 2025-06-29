@@ -13,6 +13,9 @@ class KeywordRequest(BaseModel):
 class SearchRequest(BaseModel):
     query: str
 
+class SearchResponse(BaseModel):
+    result: str
+
 @router.post("/")
 async def get_websearch(query: str):
     """Runs the Langchain agent from lang_search.py with the given query."""
@@ -26,12 +29,7 @@ async def search_resume_links(payload: SearchRequest):
         "valid_links": result.get("valid_links", [])
     }
 
-@router.post("/search-links", response_model=Dict[str, List[str]])
-async def search_links(request: KeywordRequest):
-    try:
-        results = await run_batch_keyword_search(
-            keywords=request.keywords,
-        )
-        return results
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"검색 중 오류 발생: {str(e)}")
+@router.post("/api/v1/search/search-links", response_model=SearchResponse)
+async def search_links(keywords: List[str]):
+    result = await run_batch_keyword_search(keywords)
+    return {"result": result}
