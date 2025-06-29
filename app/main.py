@@ -12,7 +12,7 @@ load_dotenv()
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from app.api.v1.api import api_router
-
+from app.core.config import settings
 # 로깅 설정
 logging.basicConfig(
     level=logging.INFO,
@@ -34,7 +34,12 @@ origins = [
 ]
 
 # CORS 미들웨어 추가
-app.add_middleware(SessionMiddleware, secret_key="your-session-secret")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key="your-session-secret",
+    https_only=settings.COOKIE_SECURE,
+    same_site=settings.COOKIE_SAMESITE,
+    )
 # app.add_middleware(
 #     SessionMiddleware,
 #     secret_key="your-secret-key",
