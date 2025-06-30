@@ -1,7 +1,7 @@
 from langchain.agents import Tool, initialize_agent
 from langchain.agents.agent_types import AgentType
 from langchain_community.chat_models import ChatOpenAI
-# from app.services.search_service.lang_search import run_langchain_search
+from app.services.search_service.lang_search import run_single_keyword_search
 from langchain_google_genai import ChatGoogleGenerativeAI
 from app.services.docs_service.docs_recommend import run_doc_recommendation
 from app.core.config import settings
@@ -10,6 +10,7 @@ from app.services.docs_service.draft_log_crud import insert_draft_log
 import asyncio
 import json
 import os # <-- os 모듈 추가 (환경 변수 사용을 위해)
+from urllib.parse import urlparse
 
 # ==============================================================================
 # 1. LLM 초기화 및 환경 변수 설정
@@ -115,6 +116,9 @@ async def extract_keywords_from_meeting(meeting_text: str) -> str:
 async def doc_recommendation(query: str) -> dict:
     return await run_doc_recommendation(query)
 
+async def single_keyword_search(query: str) -> str:
+    return await run_single_keyword_search(query)
+
 
 # Tool 인스턴스 생성
 meeting_analysis_tool = Tool(
@@ -136,6 +140,13 @@ doc_recommendation_tool = Tool(
     func=doc_recommendation,
     description="Use this tool to recommend documents for the meeting based on keywords extracted from meeting content.",
     coroutine=doc_recommendation
+)
+
+doc_external_recommendation_tool = Tool(
+    name="External Document Search",
+    func=single_keyword_search,
+    description="Tool to search and extract link.",
+    coroutine=single_keyword_search
 )
 
 
@@ -195,7 +206,7 @@ async def extract_internal_doc_keywords(meeting_text: str) -> list[str]:
 
 
 # Agent 초기화
-tools = [meeting_analysis_tool, keyword_extraction_tool, doc_recommendation_tool]
+tools = [meeting_analysis_tool, keyword_extraction_tool, doc_recommendation_tool, doc_external_recommendation_tool]
 
 agent = initialize_agent(
     tools=tools,
@@ -386,7 +397,59 @@ async def save_results_to_db(agent_result: str, meeting_text: str, db, meeting_i
         saved_count = 0
         for i, (keyword, section_content) in enumerate(sections):
             print(f"[DEBUG] 섹션 {i+1}/{len(sections)} 처리 중: 키워드='{keyword}'")
-            
+
+            # 1. 외부 검색 결과가 있는지 확인
+            if "외부 검색 결과:" in section_content:
+                print(f"[DEBUG] '{keyword}'에 대한 외부 검색 결과 발견.")
+                
+                # '외부 검색 결과:' 이후의 텍스트에서 URL 추출
+                external_search_part = section_content.split("외부 검색 결과:")[-1]
+                external_urls = extract_download_urls_from_output(external_search_part)
+
+                if not external_urls:
+                    print(f"[경고] '외부 검색 결과:' 텍스트는 있으나 URL을 추출하지 못했습니다. 섹션 내용: {section_content[:200]}...")
+                    continue
+                
+                for url in external_urls:
+                    # URL에서 파일명 추출하여 제목으로 사용
+                    try:
+                        title = os.path.basename(urlparse(url).path)
+                        if not title:
+                            # URL 경로에 파일명이 없는 경우, 마지막 세그먼트를 사용
+                            title = url.split('/')[-1].split('?')[0].split('#')[0]
+                        if not title:
+                            title = "외부 검색 문서" # 최종 fallback
+                    except Exception:
+                        title = "외부 검색 문서"
+
+                    doc_key = (title, url)
+                    if doc_key in saved_documents:
+                        print(f"[중복 스킵] 이미 저장된 외부 문서: title='{title}', link='{url}'")
+                        continue
+                    
+                    try:
+                        print(f"[DEBUG] 외부 문서 DB 저장 시도: meeting_id={meeting_id}, keyword={keyword}")
+                        
+                        await insert_draft_log(
+                            db=db,
+                            meeting_id=meeting_id,
+                            draft_ref_reason=keyword or "외부 문서 검색",
+                            ref_interdoc_id=url, # 외부 URL을 ref_id로 사용
+                            draft_title="외부 - 관련 자료 링크"   # URL에서 추출한 파일명을 제목으로 사용
+                        )
+                        
+                        saved_documents.add(doc_key)
+                        saved_count += 1
+                        print(f"[저장 완료 {saved_count}] 외부 문서: keyword={keyword}, title={title}, ref_id={url}")
+
+                    except Exception as db_error:
+                        print(f"[DB 저장 오류] 외부 문서: keyword={keyword}, title={title}, 오류={db_error}")
+                        continue
+                
+                # 외부 검색 결과를 처리했으므로, 이 섹션의 내부 문서 추천 결과는 저장하지 않고 다음 섹션으로 이동
+                continue
+
+            # 2. 외부 검색 결과가 없는 경우 (기존 내부 문서 추천 로직)
             try:
                 # 문서 정보 추출
                 documents = extract_document_info_from_output(section_content)
