@@ -135,6 +135,7 @@ keyword_extraction_tool = Tool(
     coroutine=extract_keywords_from_meeting
 )
 
+# 내부문서
 doc_recommendation_tool = Tool(
     name="Document Recommendation",
     func=doc_recommendation,
@@ -142,6 +143,7 @@ doc_recommendation_tool = Tool(
     coroutine=doc_recommendation
 )
 
+# 외부문서
 doc_external_recommendation_tool = Tool(
     name="External Document Search",
     func=single_keyword_search,
@@ -348,12 +350,19 @@ async def save_results_to_db(agent_result: str, meeting_text: str, db, meeting_i
         db: 데이터베이스 연결 객체
         meeting_id: 회의 ID
     """
+    from app.services.tagging import save_prompt_log
+    from datetime import datetime
+    
     print("[DB 저장] Agent 결과를 DB에 저장 중...")
     print(f"[DEBUG] Agent 결과 길이: {len(agent_result)} 문자")
     print(f"[DEBUG] Meeting ID: {meeting_id}")
     
     # 중복 방지를 위한 세트 (title, link 조합으로 중복 체크)
     saved_documents = set()
+    
+    # 프롬프트 로그 저장을 위한 데이터 수집
+    docs_results = []  # 내부 문서 결과
+    search_results = []  # 외부 문서 결과
     
     try:
         # Agent 결과 파싱 개선
@@ -406,6 +415,13 @@ async def save_results_to_db(agent_result: str, meeting_text: str, db, meeting_i
                 external_search_part = section_content.split("외부 검색 결과:")[-1]
                 external_urls = extract_download_urls_from_output(external_search_part)
 
+                # 외부 검색 결과를 search_results에 추가
+                search_results.append({
+                    "keyword": keyword,
+                    "search_content": external_search_part.strip(),
+                    "urls": external_urls
+                })
+
                 if not external_urls:
                     print(f"[경고] '외부 검색 결과:' 텍스트는 있으나 URL을 추출하지 못했습니다. 섹션 내용: {section_content[:200]}...")
                     continue
@@ -430,6 +446,7 @@ async def save_results_to_db(agent_result: str, meeting_text: str, db, meeting_i
                     try:
                         print(f"[DEBUG] 외부 문서 DB 저장 시도: meeting_id={meeting_id}, keyword={keyword}")
                         
+                        # 외부저장 변수 url 
                         await insert_draft_log(
                             db=db,
                             meeting_id=meeting_id,
@@ -454,6 +471,13 @@ async def save_results_to_db(agent_result: str, meeting_text: str, db, meeting_i
                 # 문서 정보 추출
                 documents = extract_document_info_from_output(section_content)
                 print(f"[DEBUG] 키워드 '{keyword}'에서 {len(documents)}개 문서 추출됨")
+                
+                # 내부 문서 결과를 docs_results에 추가
+                if documents:
+                    docs_results.append({
+                        "keyword": keyword,
+                        "documents": documents
+                    })
                 
                 if documents:
                     for j, doc in enumerate(documents):
@@ -519,6 +543,47 @@ async def save_results_to_db(agent_result: str, meeting_text: str, db, meeting_i
         print(f"[DB 저장 완료] 총 {saved_count}개 문서 저장됨 (중복 제거됨)")
         print(f"[DEBUG] 저장된 문서 목록: {saved_documents}")
         
+        # ========== 프롬프트 로그 저장 ==========
+        current_time = datetime.now()
+        
+        # 내부 문서 (docs) 프롬프트 로그 저장
+        if docs_results:
+            docs_log_data = {
+                "internal_documents": docs_results,
+                "metadata": {
+                    "total_keywords": len(docs_results),
+                    "processing_time": current_time.isoformat()
+                }
+            }
+            await save_prompt_log(
+                db, 
+                meeting_id, 
+                "docs", 
+                docs_log_data,
+                input_date=current_time,
+                output_date=current_time
+            )
+            print(f"[프롬프트 로그] 내부 문서 결과 저장 완료: {len(docs_results)}개 키워드")
+        
+        # 외부 문서 (search) 프롬프트 로그 저장
+        if search_results:
+            search_log_data = {
+                "external_searches": search_results,
+                "metadata": {
+                    "total_searches": len(search_results),
+                    "processing_time": current_time.isoformat()
+                }
+            }
+            await save_prompt_log(
+                db, 
+                meeting_id, 
+                "search", 
+                search_log_data,
+                input_date=current_time,
+                output_date=current_time
+            )
+            print(f"[프롬프트 로그] 외부 검색 결과 저장 완료: {len(search_results)}개 검색")
+        
         if saved_count == 0:
             print("[경고] 저장된 문서가 없습니다.")
             print(f"[DEBUG] 원본 Agent 결과:")
@@ -547,6 +612,7 @@ def extract_document_info_from_output(output):
     Agent 출력에서 문서 정보를 추출하는 개선된 함수
     """
     print(f"[DEBUG extract_function] 입력 타입: {type(output)}")
+    # 내부 문서 변수
     print(f"[DEBUG extract_function] 입력: {output}")
     # print(f"[DEBUG extract_function] 입력 길이: {len(str(output))}")
     
