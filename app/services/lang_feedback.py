@@ -91,16 +91,16 @@ async def feedback_agent(subject, chunks, tag_result, attendees_list=None, agend
         elif n <= 6:
             # 2번: 대표 2개만 + 등
             details = ", ".join([f"{round(s,1)}~{round(e,1)}분" for s, e in merged_ranges[:2]])
-            small_talk = [f"총 {n}개의 잡담 구간({details} 등)에서 관련 없는 대화가 많았습니다."]
+            small_talk = [f"총 {n}개의 잡담 구간({details} 등)에서 관련 없는 대화가 있었습니다."]
         else:
             # 3번: 대표 3개만 + 외 N개
             details = ", ".join([f"{round(s,1)}~{round(e,1)}분" for s, e in merged_ranges[:3]])
-            small_talk = [f"총 {n}개의 잡담 구간({details} 외 {n-3}개)에서 관련 없는 대화가 많았습니다."]
+            small_talk = [f"총 {n}개의 잡담 구간({details} 외 {n-3}개)에서 관련 없는 대화가 있었습니다."]
     else:
         for start, end in chit_chat_ranges:
             start_min = start + 1
             end_min = end + 1
-            small_talk.append(f"{start_min}분~{end_min}분 구간에서 관련 없는 대화가 많았습니다.")
+            small_talk.append(f"{start_min}분~{end_min}분 구간에서 관련 없는 대화가 있었습니다.")
     if not small_talk:
         small_talk = ["잡담 구간이 뚜렷하게 나타나지 않았습니다."]
 
