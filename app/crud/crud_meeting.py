@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from uuid import uuid4
+from uuid import uuid4, UUID
 from datetime import datetime
 from app.models.meeting import Meeting  # 실제 모델 경로에 맞게 수정
 from app.models.project_user import ProjectUser
@@ -150,28 +150,103 @@ async def get_conference_list(db: AsyncSession, project_id: str) -> List[Dict]:
     ]
 
 # 프롬프트 로그 저장용 에이전트 유형 매핑 함수 및 insert 함수
-# async def get_agent_type_map():
-#     return {
-#         '요약': 'summary',
-#         '검색': 'search',
-#         '문서': 'docs',  # 필요시 추가
-#     }
+async def get_agent_type_map():
+    return {
+        '요약': 'summary',
+        '검색': 'search',
+        '문서': 'docs',  # 필요시 추가
+    }
 
-# # 프롬프트 로그 저장 함수
-# async def insert_prompt_log(db: AsyncSession, meeting_id: str, agent_type: str, prompt_output: str, prompt_input_date: datetime, prompt_output_date: datetime):
-#     from app.models import PromptLog
-#     prompt_log = PromptLog(
-#         prompt_id=str(uuid4()),
-#         meeting_id=meeting_id,
-#         agent_type=agent_type,
-#         prompt_output=prompt_output,
-#         prompt_input_date=prompt_input_date,
-#         prompt_output_date=prompt_output_date
-#     )
-#     db.add(prompt_log)
-#     await db.commit()
-#     await db.refresh(prompt_log)
-#     return prompt_log
+# 프롬프트 로그 저장 함수
+async def insert_prompt_log(db: AsyncSession, meeting_id: str, agent_type: str, prompt_output: str, prompt_input_date: datetime, prompt_output_date: datetime):
+    from app.models import PromptLog
+    
+    # meeting_id를 UUID로 변환
+    meeting_uuid = UUID(meeting_id) if isinstance(meeting_id, str) else meeting_id
+    
+    prompt_log = PromptLog(
+        # prompt_id는 자동 생성되므로 제거
+        prompt_meeting_id=meeting_uuid,
+        agent_type=agent_type,
+        prompt_output=prompt_output,
+        prompt_input_date=prompt_input_date,
+        prompt_output_date=prompt_output_date
+    )
+    db.add(prompt_log)
+    await db.commit()
+    await db.refresh(prompt_log)
+    return prompt_log
+
+# 프롬프트 로그 조회 함수
+async def get_prompt_logs_by_meeting(db: AsyncSession, meeting_id: str, agent_type: Optional[str] = None):
+    """
+    회의 ID로 프롬프트 로그 조회
+    
+    Args:
+        db: 데이터베이스 세션
+        meeting_id: 회의 ID
+        agent_type: 에이전트 타입 (선택적, 'search', 'summary', 'docs')
+    
+    Returns:
+        프롬프트 로그 리스트
+    """
+    from app.models import PromptLog
+    
+    # meeting_id를 UUID로 변환
+    meeting_uuid = UUID(meeting_id) if isinstance(meeting_id, str) else meeting_id
+    
+    stmt = select(PromptLog).where(PromptLog.prompt_meeting_id == meeting_uuid)
+    
+    if agent_type:
+        stmt = stmt.where(PromptLog.agent_type == agent_type)
+    
+    result = await db.execute(stmt)
+    logs = result.scalars().all()
+    
+    return [
+        {
+            "prompt_id": str(log.prompt_id),
+            "agent_type": log.agent_type,
+            "prompt_output": log.prompt_output,
+            "prompt_input_date": log.prompt_input_date,
+            "prompt_output_date": log.prompt_output_date
+        }
+        for log in logs
+    ]
+
+# 모든 프롬프트 로그 조회 함수
+async def get_all_prompt_logs(db: AsyncSession, agent_type: Optional[str] = None):
+    """
+    모든 프롬프트 로그 조회
+    
+    Args:
+        db: 데이터베이스 세션
+        agent_type: 에이전트 타입 (선택적)
+    
+    Returns:
+        프롬프트 로그 리스트
+    """
+    from app.models import PromptLog
+    
+    stmt = select(PromptLog)
+    
+    if agent_type:
+        stmt = stmt.where(PromptLog.agent_type == agent_type)
+    
+    result = await db.execute(stmt)
+    logs = result.scalars().all()
+    
+    return [
+        {
+            "prompt_id": str(log.prompt_id),
+            "meeting_id": str(log.prompt_meeting_id),
+            "agent_type": log.agent_type,
+            "prompt_output": log.prompt_output,
+            "prompt_input_date": log.prompt_input_date,
+            "prompt_output_date": log.prompt_output_date
+        }
+        for log in logs
+    ]
 
 # 프로젝트 회의 목록 조회
 async def get_project_meetings(db: AsyncSession, project_id: str):

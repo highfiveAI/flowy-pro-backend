@@ -1,7 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Depends, Body, BackgroundTasks
 from fastapi import APIRouter
 from app.services.stt import stt_from_file
-from app.services.tagging import tag_chunks_async
+from app.services.tagging import tag_chunks_async, save_prompt_log
 from app.services.docs_service.orchestration import super_agent_for_meeting
 import json
 import os
@@ -12,7 +12,7 @@ from pydantic import BaseModel, UUID4
 from datetime import datetime
 from sqlalchemy.orm import Session
 from app.db.db_session import get_db_session
-from app.crud.crud_meeting import insert_meeting, insert_meeting_user, get_project_meetings
+from app.crud.crud_meeting import insert_meeting, insert_meeting_user, get_project_meetings, insert_prompt_log
 from app.models.project_user import ProjectUser
 from app.models.flowy_user import FlowyUser
 from app.models.role import Role
@@ -163,9 +163,20 @@ async def run_stt_in_background(
             meeting_duration_minutes=duration_minutes
         )
         all_txt_result = " ".join(tag_result.get("all_sentences") or [])
+        
+        # ========== Docs/Search Agent 시작/완료 시간 추적 ==========
+        docs_search_start_time = datetime.now()
+        print(f"[BackgroundTask] Docs/Search Agent 시작: {docs_search_start_time}", flush=True)
+        
+        # 내부문서/외부문서 프롬프트 로그 (orchestration.py에서 내부적으로 docs와 search 분리 저장)
         search_result = await super_agent_for_meeting(all_txt_result, db=db, meeting_id=meeting.meeting_id)
+        
+        docs_search_end_time = datetime.now()
+        print(f"[BackgroundTask] Docs/Search Agent 완료: {docs_search_end_time} (소요시간: {docs_search_end_time - docs_search_start_time})", flush=True)
+        
         urls = re.findall(r'https?://\S+', search_result)
-        print(f"\n\n[BackgroundTask] 찾은 내부 문서 링크 :\n {search_result}\n\n", flush=True)
+        print(f"\n\n[BackgroundTask] 찾은 문서 링크 :\n {search_result}\n\n", flush=True)
+        
         doc_recommend_result = await recommend_documents(subject)
         print(f"[BackgroundTask] 분석 완료: meeting_id={meeting.meeting_id}", flush=True)
     except Exception as e:

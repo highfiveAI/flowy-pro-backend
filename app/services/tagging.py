@@ -9,14 +9,53 @@ from app.services.lang_role import assign_roles
 from app.services.lang_todo import extract_todos
 from app.services.lang_previewmeeting import lang_previewmeeting
 from typing import List, Dict, Any
-from app.crud.crud_meeting import insert_summary_log, insert_task_assign_log, insert_feedback_log, get_feedback_type_map
+from app.crud.crud_meeting import insert_summary_log, insert_task_assign_log, insert_feedback_log, get_feedback_type_map, insert_prompt_log
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.notify_email_service import send_meeting_email
 from openai import AsyncOpenAI
 from app.services.calendar_service.calendar_crud import insert_calendar_from_task
+from datetime import datetime
 
 openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+async def save_prompt_log(db: AsyncSession, meeting_id: str, agent_type: str, prompt_output: Any, input_date: datetime = None, output_date: datetime = None):
+    """
+    프롬프트 로그를 저장하는 헬퍼 함수
+    
+    Args:
+        db: 데이터베이스 세션
+        meeting_id: 회의 ID
+        agent_type: 에이전트 타입 ('search', 'summary', 'docs')
+        prompt_output: 에이전트 결과물
+        input_date: 프롬프트 입력 시간 (선택적)
+        output_date: 프롬프트 출력 시간 (선택적)
+    """
+    try:
+        current_time = datetime.now()
+        
+        # 날짜가 제공되지 않은 경우 현재 시간 사용
+        prompt_input_date = input_date or current_time
+        prompt_output_date = output_date or current_time
+        
+        # 결과물을 JSON 문자열로 변환
+        if isinstance(prompt_output, (dict, list)):
+            output_str = json.dumps(prompt_output, ensure_ascii=False, default=str)
+        else:
+            output_str = str(prompt_output)
+        
+        await insert_prompt_log(
+            db=db,
+            meeting_id=meeting_id,
+            agent_type=agent_type,
+            prompt_output=output_str,
+            prompt_input_date=prompt_input_date,
+            prompt_output_date=prompt_output_date
+        )
+        print(f"[tagging.py] {agent_type.upper()} 프롬프트 로그 저장 완료 (입력: {prompt_input_date}, 출력: {prompt_output_date})", flush=True)
+        
+    except Exception as e:
+        print(f"[tagging.py] {agent_type.upper()} 프롬프트 로그 저장 오류: {e}", flush=True)
 
 async def gpt_score_sentence_async(subject, prev_sent, target_sent, next_sent):
     """
@@ -142,6 +181,10 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
         print(f"  [{s['index']+1}] 점수: {s['score']} / 이유: {s['reason']} / 문장: {s['sentence']}", flush=True)
 
     try:
+        # Summary Agent 시작 시간 기록
+        summary_start_time = datetime.now()
+        print(f"[tagging.py] Summary Agent 시작: {summary_start_time}", flush=True)
+        
         # lang_summary 호출
         summary_result = await lang_summary(subject, chunks, sentence_scores, attendees_list, agenda, meeting_date) if attendees_list is not None else await lang_summary(subject, chunks, sentence_scores, None, agenda, meeting_date)
         
@@ -246,11 +289,18 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
         # 할 일 추출 agent 호출
         todos_result = await extract_todos(subject, chunks, attendees_list, sentence_scores, agenda, meeting_date)
         assigned_roles = todos_result.get("assigned_roles")
+        
+        # Summary Agent 완료 시간 기록
+        summary_end_time = datetime.now()
+        print(f"[tagging.py] Summary Agent 완료: {summary_end_time} (소요시간: {summary_end_time - summary_start_time})", flush=True)
+        
     except Exception as e:
         print(f"[tag_chunks] 에이전트 호출 오류: {e}", flush=True)
         summary_result = "에이전트 호출 중 오류가 발생했습니다."
         feedback_result = {"오류": "에이전트 호출 중 오류가 발생했습니다."}
         assigned_roles = {}
+        summary_start_time = datetime.now()
+        summary_end_time = datetime.now()
     
     # DB 저장 (db가 있을 때만)
     if db is not None:
@@ -280,6 +330,33 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
                     print(f"Unknown feedbacktype_name: {feedbacktype_name}", flush=True)
         else:
             await insert_feedback_log(db, feedback_result, '', meeting_id)
+
+        # ========== 프롬프트 로그 저장 ==========
+        if meeting_id:
+            # Summary Agent 결과 저장 (모든 summary 관련 agent 결과를 하나로 통합)
+            summary_prompt_output = {
+                "lang_summary": summary_result,
+                "lang_feedback": feedback_result,
+                "lang_todo_and_role": assigned_roles,
+                "lang_previewmeeting": preview_meeting_data if 'preview_meeting_data' in locals() else None,
+                "metadata": {
+                    "subject": subject,
+                    "agenda": agenda,
+                    "meeting_date": meeting_date,
+                    "attendees_count": len(attendees_list) if attendees_list else 0
+                }
+            }
+            
+            # 시작/완료 시간을 함께 저장
+            await save_prompt_log(
+                db, 
+                str(meeting_id), 
+                "summary", 
+                summary_prompt_output,
+                input_date=summary_start_time,
+                output_date=summary_end_time
+            )
+
         # 모든 피드백 저장이 끝난 후 이메일 전송 (회의장에게만)
         host = None
         if attendees_list:

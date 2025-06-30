@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, exists, String
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 import datetime
 
@@ -13,6 +13,7 @@ from app.models.calendar import Calendar
 from app.models.flowy_user import FlowyUser
 from app.schemas.meeting import PendingMeetingResponse, AcceptMeetingRequest, RejectMeetingRequest
 from app.schemas.signup_info import TokenPayload
+from app.crud.crud_meeting import get_prompt_logs_by_meeting, get_all_prompt_logs
 
 router = APIRouter()
 
@@ -278,4 +279,48 @@ async def reject_meeting(
         raise HTTPException(status_code=400, detail=f"잘못된 UUID 형식: {str(e)}")
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"서버 오류: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"서버 오류: {str(e)}")
+
+@router.get("/prompt-logs/{meeting_id}")
+async def get_meeting_prompt_logs(
+    meeting_id: str,
+    agent_type: Optional[str] = None,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """
+    특정 회의의 프롬프트 로그 조회
+    
+    Args:
+        meeting_id: 회의 ID
+        agent_type: 에이전트 타입 필터 ('search', 'summary', 'docs')
+    """
+    try:
+        logs = await get_prompt_logs_by_meeting(db, meeting_id, agent_type)
+        return {
+            "meeting_id": meeting_id,
+            "agent_type": agent_type,
+            "logs": logs
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"프롬프트 로그 조회 중 오류: {str(e)}")
+
+@router.get("/prompt-logs")
+async def get_all_meeting_prompt_logs(
+    agent_type: Optional[str] = None,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """
+    모든 회의의 프롬프트 로그 조회
+    
+    Args:
+        agent_type: 에이전트 타입 필터 ('search', 'summary', 'docs')
+    """
+    try:
+        logs = await get_all_prompt_logs(db, agent_type)
+        return {
+            "agent_type": agent_type,
+            "total_count": len(logs),
+            "logs": logs
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"프롬프트 로그 조회 중 오류: {str(e)}") 
