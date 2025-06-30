@@ -13,16 +13,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from app.api.v1.api import api_router
 from app.core.config import settings
-# 로깅 설정
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# # 로깅 설정
+# logging.basicConfig(
+#     level=logging.INFO,
+#     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+# )
 
-# SQLAlchemy 로깅 활성화
-logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
-logging.getLogger('sqlalchemy.pool').setLevel(logging.INFO)
-logging.getLogger('sqlalchemy.dialects').setLevel(logging.INFO)
+# # SQLAlchemy 로깅 활성화
+# logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
+# logging.getLogger('sqlalchemy.pool').setLevel(logging.INFO)
+# logging.getLogger('sqlalchemy.dialects').setLevel(logging.INFO)
 
 app = FastAPI(debug=True)
 

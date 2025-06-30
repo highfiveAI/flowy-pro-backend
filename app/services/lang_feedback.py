@@ -135,7 +135,11 @@ async def feedback_agent(subject, chunks, tag_result, attendees_list=None, agend
     """
 
     guide_response = await llm.ainvoke(feedback_prompt)
-    guide = [guide_response.content.strip()]
+    # guide_response.content가 리스트일 수 있으므로 처리
+    guide_content = guide_response.content
+    if isinstance(guide_content, list):
+        guide_content = ' '.join(str(item) for item in guide_content)
+    guide = [guide_content.strip()]
 
     missing_agenda_issues = None
     if agenda:
@@ -143,14 +147,58 @@ async def feedback_agent(subject, chunks, tag_result, attendees_list=None, agend
             agenda_items = await split_agenda(agenda)
         else:
             agenda_items = agenda
+        
+        # LLM을 활용한 의미론적 안건 논의 여부 분석
+        meeting_text = '\n'.join(chunks) if isinstance(chunks, list) else str(chunks)
+        
+        # 각 안건에 대해 LLM으로 논의 여부 판단
         discussed = []
         not_discussed = []
-        meeting_text = '\n'.join(chunks) if isinstance(chunks, list) else str(chunks)
+        
         for item in agenda_items:
-            if item and item in meeting_text:
-                discussed.append(item)
-            else:
-                not_discussed.append(item)
+            if not item:
+                continue
+                
+            agenda_analysis_prompt = f"""
+            다음 회의록을 분석하여 특정 안건이 실제로 논의되었는지 판단해주세요.
+
+            **회의록:**
+            {meeting_text}
+
+            **확인할 안건:**
+            {item}
+
+            **판단 기준:**
+            1. 해당 안건과 관련된 구체적인 논의, 의견 교환, 결정사항이 있는가?
+            2. 단순히 키워드만 언급된 것이 아니라 실질적인 내용 논의가 있었는가?
+            3. 안건에 대한 질문, 답변, 토론이 이루어졌는가?
+
+            다음 형식으로만 답변해주세요:
+            논의됨: [예/아니오]
+            이유: [구체적인 근거]
+            """
+            
+            try:
+                analysis_response = await llm.ainvoke(agenda_analysis_prompt)
+                response_content = analysis_response.content
+                if isinstance(response_content, list):
+                    response_content = ' '.join(str(item) for item in response_content)
+                response_content = response_content.strip()
+                
+                # 응답 파싱
+                if "논의됨: 예" in response_content:
+                    discussed.append(item)
+                else:
+                    not_discussed.append(item)
+                    
+            except Exception as e:
+                print(f"[lang_feedback] 안건 분석 중 오류 발생: {e}", flush=True)
+                # 오류 발생 시 기존 방식으로 폴백
+                if item and item in meeting_text:
+                    discussed.append(item)
+                else:
+                    not_discussed.append(item)
+        
         if not_discussed:
             missing_agenda_issues = f"{', '.join(not_discussed)}"
         else:
