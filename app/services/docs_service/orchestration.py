@@ -208,6 +208,7 @@ agent = initialize_agent(
 def create_agent_prompt(meeting_text: str) -> str:
     """
     Agent가 전체 프로세스를 수행하도록 하는 통합 프롬프트 생성
+    - 문서 추천 결과가 부적절할 경우 외부 검색을 수행하는 로직 추가
     """
     return f"""
 반드시 아래 형식으로 답변하세요:
@@ -215,7 +216,7 @@ Thought: (에이전트의 생각)
 Action: (사용할 도구 이름)
 Action Input: (도구에 넘길 입력값)
     
-당신은 회의 내용을 분석하여 필요한 내부 문서를 추천하는 전문 에이전트입니다.
+당신은 회의 내용을 분석하여 필요한 내부/외부 문서를 추천하는 전문 에이전트입니다.
 다음 단계를 순서대로 수행해주세요:
 
 **1단계: 내부 문서 필요성 판단**
@@ -226,37 +227,58 @@ Action Input: (도구에 넘길 입력값)
 - Keyword Extraction 도구를 사용하여 회의 내용에서 내부 문서 검색용 키워드를 추출하세요.
 - 추출된 키워드들을 확인하고 중복을 제거하세요.
 
-**3단계: 문서 추천 (각 키워드별로)**
-- 2단계에서 추출된 각 키워드에 대해 Document Recommendation 도구를 사용하여 문서를 추천받으세요.
-- 각 키워드별로 별도의 Document Recommendation 호출을 수행하세요.
+**3단계: 문서 추천 및 판단 (각 키워드별로)**
+- 2단계에서 추출된 각 키워드에 대해 Document Recommendation 도구를 사용하여 내부 문서를 추천받으세요.
+- **추천 결과를 받은 후, 다음 조건을 확인하세요:**
+  - `similarity_score`가 0.5 미만인 경우
+  - `relevance_reason` 필드에 '관련성 낮음', '일반적인 참고 자료', '직접적 관련 없음' 등과 같은 부정적인 키워드가 포함된 경우
+- **만약 위 조건 중 하나라도 해당된다면, 4단계로 진행하세요.**
+- 조건에 해당되지 않는다면, 다음 키워드에 대한 3단계를 계속 진행하세요.
+
+**4단계: 외부 문서 검색 (3단계 조건 충족 시)**
+- 3단계에서 관련성이 낮다고 판단된 키워드에 대해, **External Document Search 도구**를 사용하여 외부 웹에서 더 나은 문서를 검색하세요.
+- 이 도구는 `https://`로 시작하는 실제 URL이 포함된 결과를 반환해야 합니다.
 
 **최종 결과 형식:**
-각 키워드별로 다음과 같은 형식으로 결과를 정리해주세요:
+각 키워드별로 다음과 같은 형식으로 모든 결과를 정리해주세요.
+내부 문서 추천 결과와 외부 문서 검색 결과를 모두 포함해야 합니다.
 
 키워드: [키워드명]
-[Document Recommendation 도구가 반환한 JSON 결과를 그대로 복사하여 붙여넣기]
-
+[내부 문서 추천 결과 - Document Recommendation 도구가 반환한 JSON을 그대로 복사하여 붙여넣기]
+[외부 문서 검색 결과 - External Document Search 도구가 반환한 텍스트를 그대로 복사하여 붙여넣기]
 
 **중요 지침:**
-- 반드시 위의 1-2-3 단계를 순서대로 수행하세요.
-- Document Recommendation 도구의 결과는 절대 수정하지 마세요. 받은 JSON을 그대로 출력하세요.
-- download_url 필드의 실제 URL을 임의로 변경하거나 축약하지 마세요.
-- 도구의 결과를 "요약"하거나 "정리"하지 마세요. 원본 그대로 출력하세요.
-- JSON 형식을 유지하고, 모든 필드(title, download_url, similarity_score, relevance_reason)를 그대로 보존하세요.
-= 3단계의 과정이 끝나면 해당 함수를 반드시 무조건 종료하세요. 반복되는 현상을 막기 위함이니 반드시 지키세요
+- 반드시 위의 1-2-3-4 단계를 순서대로 수행하세요.
+- 도구의 결과를 절대 수정하거나 요약하지 마세요. 받은 JSON과 텍스트를 원본 그대로 출력하세요.
+- **`download_url` 필드 값을 변경하지 마세요.** 외부 문서 링크는 별도의 섹션으로 추가하세요.
+- 3단계와 4단계의 과정이 끝나면 해당 함수를 반드시 무조건 종료하세요. 반복되는 현상을 막기 위함이니 반드시 지키세요.
 
 **예시 출력 형식:**
-키워드: 예시키워드
+키워드: 프로젝트 기획안 작성을 위한 문서
 {{
 "documents": [
 {{
-"title": "문서제목.docx",
-"download_url": "https://실제URL주소",
-"similarity_score": 0.85,
-"relevance_reason": "실제 이유 설명"
+"title": "내부_기획안_양식.docx",
+"download_url": "https://내부URL",
+"similarity_score": 0.92,
+"relevance_reason": "프로젝트 기획을 위한 공식 양식"
 }}
 ]
 }}
+키워드: 웹 프로젝트 스토리보드 요구사항 정의를 위한 문서
+{{
+"documents": [
+{{
+"title": "일반_문서_양식.docx",
+"download_url": "https://내부_일반_URL",
+"similarity_score": 0.65,
+"relevance_reason": "전반적인 참고 자료"
+}}
+]
+}}
+외부 검색 결과:
+- 프로젝트 스토리보드 작성 가이드: https://external-guide.com/storyboard-template
+- 웹 개발 요구사항 정의서 양식: https://external-blog.com/requirements-doc
 
 
 **분석할 회의 내용:**
@@ -462,7 +484,8 @@ def extract_document_info_from_output(output):
     Agent 출력에서 문서 정보를 추출하는 개선된 함수
     """
     print(f"[DEBUG extract_function] 입력 타입: {type(output)}")
-    print(f"[DEBUG extract_function] 입력 길이: {len(str(output))}")
+    print(f"[DEBUG extract_function] 입력: {output}")
+    # print(f"[DEBUG extract_function] 입력 길이: {len(str(output))}")
     
     documents = []
     try:
