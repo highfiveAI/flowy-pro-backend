@@ -25,8 +25,8 @@ if not google_api_key:
 # # Note: 이제 llm 변수가 ChatGoogleGenerativeAI 인스턴스입니다.
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0, google_api_key=google_api_key)
 
-openai_api_key = settings.OPENAI_API_KEY
-llm = ChatOpenAI(temperature=0)
+# openai_api_key = settings.OPENAI_API_KEY
+# llm = ChatOpenAI(temperature=0)
 
 # AWS 설정
 AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY")

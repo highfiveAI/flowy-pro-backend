@@ -17,6 +17,7 @@ class Calendar(Base):
     completed = Column(Boolean, nullable=False)
     created_at = Column(TIMESTAMP, nullable=False)
     updated_at = Column(TIMESTAMP)
+    status = Column(String(20))
 
     user = relationship("FlowyUser", back_populates="calendars")
     project = relationship("Project", back_populates="calendars")
