@@ -23,6 +23,20 @@ async def get_calendars_by_user_and_project(user_id: UUID, project_id: UUID, db:
     return result.scalars().all()
 
 
+async def get_calendars_by_user_and_project_filtered(user_id: UUID, project_id: UUID, db: AsyncSession) -> List[Calendar]:
+    """
+    사용자와 프로젝트별 캘린더 조회 (거부된 예정 회의 제외)
+    """
+    result = await db.execute(
+        select(Calendar).where(
+            (Calendar.user_id == user_id) & 
+            (Calendar.project_id == project_id) &
+            (Calendar.status != 'rejected')  # 거부된 예정 회의는 캘린더에 표시하지 않음
+        )
+    )
+    return result.scalars().all()
+
+
 async def update_calendar(
     calendar_id: UUID,
     completed: bool,
@@ -50,7 +64,8 @@ async def insert_meeting_calendar(
     calendar_type: str = "meeting",
     completed: bool = False,
     created_at: datetime = None,
-    updated_at: datetime = None
+    updated_at: datetime = None,
+    status: str = "active"
 ):
     now = datetime.utcnow()
     calendar = Calendar(
@@ -62,7 +77,8 @@ async def insert_meeting_calendar(
         calendar_type=calendar_type,
         completed=completed,
         created_at=created_at or now,
-        updated_at=updated_at or now
+        updated_at=updated_at or now,
+        status=status
     )
     db.add(calendar)
     await db.commit()

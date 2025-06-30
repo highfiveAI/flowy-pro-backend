@@ -160,11 +160,26 @@ async def should_use_internal_doc_tool(meeting_text: str) -> bool:
 
 async def extract_internal_doc_keywords(meeting_text: str) -> list[str]:
     extract_prompt = f"""
-다음 회의 내용에서 내부 문서 검색을 위한 **문서 양식 키워드**를 2개 추출하세요.
+    너는 회의 내용을 분석하여, 회의에서 논의된 업무를 수행하기 위해 필요한 **내부 문서의 목적**을 한 문장으로 요약하는 전문가입니다.
 
-회의에서 분담된 역할과 업무를 분석하여
-필요한 내부 문서 유형 (예: 결재서류, 업무보고서, 프로젝트 계획서, 회의록 등)을 검색 키워드로 2개 생성하세요.
-예를 들어, 키워드는 "회의록 작성 문서", "회의록 양식 문서", "기획서 작성 문서", "기획서 양식 문서", "공지 문서" 등이 될 수 있습니다.
+    **[목표]**
+    회의 내용에 기반하여, 다음 업무를 진행하기 위해 필요한 내부 문서가 어떤 목적을 가졌는지 판단하고, 아래 예시와 동일한 형식의 문장으로 요약해줘.
+
+    **[예시 출력 형식]**
+    "프로젝트 기획안 작성을 위한 문서"
+    "웹 프로젝트 스토리보드 요구사항 정의를 위한 문서"
+    "회의 진행 및 결과 기록을 위한 문서"
+    "팀별 주간 업무 진행 상황을 공유하는 문서"
+    "신규 서비스 기능 명세를 위한 문서"
+    "규정 위반에 대한 반성과 재발 방지를 위한 시말서 작성 문서"
+
+    **[지시사항]**
+    1.  **반드시 한 문장으로** 요약하세요.
+    2.  회의 내용에 직접적으로 언급된 업무를 수행하기 위한 문서의 **사용 목적**에 초점을 맞추세요.
+    3.  문서의 **구성요소나 형식**이 아니라, **'무엇을 하기 위한 문서'**인지 구체적으로 서술하세요.
+    4.  예시와 같이 '~를 위한 문서' 형태로 문장을 완성하세요.
+    5.  여러 개의 목적이 있다면, 회의 내용에서 가장 중요하게 논의된 **핵심 목적 1~2개**만 추출하여 각각 한 문장으로 요약하세요. (최대 3개까지 허용)
+    6.  **불필요한 설명, 서론, 부연설명 없이** 요청된 요약 문장만 출력하세요. 각 문장은 새 줄에 출력하세요.
 
 회의 내용:
 {meeting_text}
@@ -185,7 +200,7 @@ tools = [meeting_analysis_tool, keyword_extraction_tool, doc_recommendation_tool
 agent = initialize_agent(
     tools=tools,
     llm=llm,
-    agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+    agent=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION,
     verbose=True,
     handle_parsing_errors=True,
 )
@@ -195,6 +210,11 @@ def create_agent_prompt(meeting_text: str) -> str:
     Agent가 전체 프로세스를 수행하도록 하는 통합 프롬프트 생성
     """
     return f"""
+반드시 아래 형식으로 답변하세요:
+Thought: (에이전트의 생각)
+Action: (사용할 도구 이름)
+Action Input: (도구에 넘길 입력값)
+    
 당신은 회의 내용을 분석하여 필요한 내부 문서를 추천하는 전문 에이전트입니다.
 다음 단계를 순서대로 수행해주세요:
 
@@ -223,6 +243,7 @@ def create_agent_prompt(meeting_text: str) -> str:
 - download_url 필드의 실제 URL을 임의로 변경하거나 축약하지 마세요.
 - 도구의 결과를 "요약"하거나 "정리"하지 마세요. 원본 그대로 출력하세요.
 - JSON 형식을 유지하고, 모든 필드(title, download_url, similarity_score, relevance_reason)를 그대로 보존하세요.
+= 3단계의 과정이 끝나면 해당 함수를 반드시 무조건 종료하세요. 반복되는 현상을 막기 위함이니 반드시 지키세요
 
 **예시 출력 형식:**
 키워드: 예시키워드

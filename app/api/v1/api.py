@@ -8,6 +8,7 @@ from app.api.v1.endpoints import project
 from app.api.v1.endpoints import calendar
 from app.api.v1.endpoints import chatbot
 from app.api.v1.endpoints import dashboard
+from app.api.v1.endpoints import meeting
 
 
 api_router = APIRouter()
@@ -20,4 +21,5 @@ api_router.include_router(project.router, prefix="/projects", tags=["projects"])
 api_router.include_router(calendar.router, prefix="/calendar", tags=["calendar"])
 api_router.include_router(chatbot.router, prefix="/chatbot", tags=["chatbot"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
+api_router.include_router(meeting.router, prefix="/meetings", tags=["meetings"])
 

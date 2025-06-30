@@ -81,3 +81,27 @@ class DraftLogResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+# 예정 회의 팝업 관련 스키마들
+class PendingMeetingResponse(BaseModel):
+    """확인 대기 중인 예정 회의 응답"""
+    meeting_id: UUID
+    meeting_title: str
+    meeting_date: datetime
+    meeting_agenda: Optional[str] = None
+    project_id: UUID
+
+    class Config:
+        from_attributes = True
+
+class AcceptMeetingRequest(BaseModel):
+    """예정 회의 캘린더 등록 요청"""
+    agent_meeting_id: UUID
+    meeting_title: Optional[str] = None
+    meeting_date: Optional[datetime] = None
+    meeting_agenda: Optional[str] = None
+
+class RejectMeetingRequest(BaseModel):
+    """예정 회의 거부 처리 요청"""
+    agent_meeting_id: UUID
+

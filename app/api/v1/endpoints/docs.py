@@ -20,6 +20,8 @@ from app.services.docs_service.docs_crud import get_db # get_db 함수 임포트
 from sqlalchemy import select
 from app.services.docs_service.draft_log_crud import get_draft_logs_by_meeting_id
 from app.schemas.meeting import DraftLogResponse
+from app.services.docs_service.orchestration import super_agent_for_meeting
+from fastapi import Body
 
 router = APIRouter()
 
@@ -47,6 +49,10 @@ class DocumentResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class SuperAgentRequest(BaseModel):
+    meeting_text: str
+    meeting_id: Optional[str] = None
 
 @router.post("/recommend", response_model=Dict[str, Any], dependencies=[Depends(require_company_admin)])
 async def recommend_documents_route(request: DocumentRecommendRequest):
@@ -162,3 +168,16 @@ async def get_draft_logs_by_meeting(
     """
     draft_logs = await get_draft_logs_by_meeting_id(db, meeting_id)
     return draft_logs
+
+@router.post("/super-agent")
+async def run_super_agent(
+    req: SuperAgentRequest,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """
+    회의 텍스트를 분석하여 내부 문서 추천 에이전트 결과를 반환합니다.
+    - meeting_text: 회의 내용 (str)
+    - meeting_id: (선택) DB 저장용 meeting_id
+    """
+    result = await super_agent_for_meeting(req.meeting_text, db=db, meeting_id=req.meeting_id)
+    return {"result": result}
