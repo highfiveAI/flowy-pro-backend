@@ -152,7 +152,7 @@ async def feedback_agent(subject, chunks, tag_result, attendees_list=None, agend
             else:
                 not_discussed.append(item)
         if not_discussed:
-            missing_agenda_issues = f"논의되지 않은 안건: {', '.join(not_discussed)}"
+            missing_agenda_issues = f"{', '.join(not_discussed)}"
         else:
             missing_agenda_issues = "모든 안건이 논의되었습니다."
 
