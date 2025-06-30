@@ -1,4 +1,4 @@
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, desc, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, load_only, joinedload, contains_eager
 from app.models import Project, ProjectUser, Meeting, MeetingUser, FlowyUser, SummaryLog, Feedback, TaskAssignLog
@@ -289,7 +289,8 @@ async def update_project_with_users(
     # 삭제할 사용자
     for user_id_str in list(existing_map.keys()):
         if user_id_str not in new_map:
-            db.delete(existing_map[user_id_str])
+            await db.delete(existing_map[user_id_str])
+    
 
     # 추가 또는 수정할 사용자
     for user_id_str, new_role_id in new_map.items():
