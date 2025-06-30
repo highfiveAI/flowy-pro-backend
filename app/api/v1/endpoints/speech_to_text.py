@@ -2,7 +2,7 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Dep
 from fastapi import APIRouter
 from app.services.stt import stt_from_file
 from app.services.tagging import tag_chunks_async
-from app.services.orchestration import super_agent_for_meeting
+from app.services.docs_service.orchestration import super_agent_for_meeting
 import json
 import os
 import re

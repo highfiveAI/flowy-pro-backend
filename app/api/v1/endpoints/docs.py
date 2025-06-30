@@ -20,7 +20,7 @@ from app.services.docs_service.docs_crud import get_db # get_db 함수 임포트
 from sqlalchemy import select
 from app.services.docs_service.draft_log_crud import get_draft_logs_by_meeting_id
 from app.schemas.meeting import DraftLogResponse
-from app.services.orchestration import super_agent_for_meeting
+from app.services.docs_service.orchestration import super_agent_for_meeting
 from fastapi import Body
 
 router = APIRouter()
