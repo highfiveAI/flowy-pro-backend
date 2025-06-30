@@ -64,7 +64,8 @@ async def insert_meeting_calendar(
     calendar_type: str = "meeting",
     completed: bool = False,
     created_at: datetime = None,
-    updated_at: datetime = None
+    updated_at: datetime = None,
+    status: str = "active"
 ):
     now = datetime.utcnow()
     calendar = Calendar(
@@ -76,7 +77,8 @@ async def insert_meeting_calendar(
         calendar_type=calendar_type,
         completed=completed,
         created_at=created_at or now,
-        updated_at=updated_at or now
+        updated_at=updated_at or now,
+        status=status
     )
     db.add(calendar)
     await db.commit()

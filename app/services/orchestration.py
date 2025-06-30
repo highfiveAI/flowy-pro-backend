@@ -160,10 +160,10 @@ async def should_use_internal_doc_tool(meeting_text: str) -> bool:
 
 async def extract_internal_doc_keywords(meeting_text: str) -> list[str]:
     extract_prompt = f"""
-다음 회의 내용에서 내부 문서 검색을 위한 **문서 양식 키워드**를 2개 추출하세요.
+다음 회의 내용에서 내부 문서 검색을 위한 **문서 양식 키워드**를 중요도를 판단하여 2개 이상 5개 이하로 추출하세요.
 
 회의에서 분담된 역할과 업무를 분석하여
-필요한 내부 문서 유형 (예: 결재서류, 업무보고서, 프로젝트 계획서, 회의록 등)을 검색 키워드로 2개 생성하세요.
+필요한 내부 문서 유형 (예: 결재서류, 업무보고서, 프로젝트 계획서, 회의록 등)을 검색 키워드로 생성하세요.
 예를 들어, 키워드는 "회의록 작성 문서", "회의록 양식 문서", "기획서 작성 문서", "기획서 양식 문서", "공지 문서" 등이 될 수 있습니다.
 
 회의 내용:
@@ -185,7 +185,7 @@ tools = [meeting_analysis_tool, keyword_extraction_tool, doc_recommendation_tool
 agent = initialize_agent(
     tools=tools,
     llm=llm,
-    agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+    agent=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION,
     verbose=True,
     handle_parsing_errors=True,
 )
@@ -195,6 +195,11 @@ def create_agent_prompt(meeting_text: str) -> str:
     Agent가 전체 프로세스를 수행하도록 하는 통합 프롬프트 생성
     """
     return f"""
+반드시 아래 형식으로 답변하세요:
+Thought: (에이전트의 생각)
+Action: (사용할 도구 이름)
+Action Input: (도구에 넘길 입력값)
+    
 당신은 회의 내용을 분석하여 필요한 내부 문서를 추천하는 전문 에이전트입니다.
 다음 단계를 순서대로 수행해주세요:
 
@@ -223,6 +228,7 @@ def create_agent_prompt(meeting_text: str) -> str:
 - download_url 필드의 실제 URL을 임의로 변경하거나 축약하지 마세요.
 - 도구의 결과를 "요약"하거나 "정리"하지 마세요. 원본 그대로 출력하세요.
 - JSON 형식을 유지하고, 모든 필드(title, download_url, similarity_score, relevance_reason)를 그대로 보존하세요.
+= 3단계의 과정이 끝나면 해당 함수를 반드시 무조건 종료하세요. 반복되는 현상을 막기 위함이니 반드시 지키세요
 
 **예시 출력 형식:**
 키워드: 예시키워드

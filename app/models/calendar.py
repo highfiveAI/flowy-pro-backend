@@ -20,5 +20,6 @@ class Calendar(Base):
     agent_meeting_id = Column(String(255), nullable=True)
     status = Column(String(20), nullable=False, default='active')  # 상태 ('active', 'rejected')    
 
+
     user = relationship("FlowyUser", back_populates="calendars")
     project = relationship("Project", back_populates="calendars")
