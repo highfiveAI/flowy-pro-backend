@@ -85,12 +85,12 @@ async def lang_summary(subject, chunks, tag_result, attendees_list=None, agenda=
 
     ```json
     {{
-      "항목 제목 A 📝": [
+      "📝 항목 제목 A": [
         "핵심 키워드 또는 개요 설명",
         "담당자, 일정, 우선순위 등 구체 정보",
         "실행 계획 또는 협업 방식 등"
       ],
-      "항목 제목 B 📊": [
+      "📊 항목 제목 B": [
         "... 관련 내용들"
       ]
     }}
@@ -101,7 +101,7 @@ async def lang_summary(subject, chunks, tag_result, attendees_list=None, agenda=
 
     # JSON 파싱 시도 (코드블록 제거)
     try:
-        content = agent_output.strip()
+        content = str(agent_output).strip()
         if content.startswith("```json"):
             content = content.removeprefix("```json").removesuffix("```").strip()
         match = re.search(r'\{.*\}', content, re.DOTALL)

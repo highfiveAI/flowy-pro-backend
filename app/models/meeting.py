@@ -13,6 +13,7 @@ class Meeting(Base):
     meeting_agenda = Column(String(1000), nullable=True)
     meeting_date = Column(TIMESTAMP, nullable=False)
     meeting_audio_path = Column(Text, nullable=False)
+    parent_meeting_id = Column(String(255), nullable=True)  # 원본회의 ID (후속회의인 경우)
     # meeting_audio_type = Column(String(30), nullable=False)
 
     project = relationship("Project", back_populates="meetings")

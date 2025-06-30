@@ -38,11 +38,16 @@ async def get_meetings_with_users_by_project_id(
 ) -> list[Meeting]:
     stmt = (
         select(Meeting)
-        .where(Meeting.project_id == project_id)
+        .where(
+            Meeting.project_id == project_id,
+            Meeting.summary_logs.any(),  # ✅ 요약 로그가 존재하는 회의만
+            Meeting.feedbacks.any()      # ✅ 피드백이 존재하는 회의만
+        )
         .options(
             selectinload(Meeting.meeting_users).selectinload(MeetingUser.user)  # 유저 정보까지
             # selectinload(Meeting.meeting_users).selectinload(MeetingUser.role)   # 역할 정보도 포함하고 싶다면
         )
+        .order_by(desc(Meeting.meeting_date))
     )
     result = await db.execute(stmt)
     return result.scalars().all()
