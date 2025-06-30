@@ -173,6 +173,9 @@ async def recommend_documents(role_text: str, k: int = 1) -> dict:
 위 문서들을 분석하여 사용자의 역할이나 업무와 가장 관련성이 높은 순서로 정렬하고, 
 각 문서가 왜 추천되는지 간단한 설명을 포함하여 아래 JSON 형식으로 응답해주세요.
 
+**중요 지침**
+객관적인 판단으로 문서가 role_text와 직접적인 관련성이 낮다고 판단될 경우 "relevance_reason"에 "관련성 낮음"을 출력하세요
+
 출력 형식:
 {{
   "documents": [
