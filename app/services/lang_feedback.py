@@ -86,21 +86,21 @@ async def feedback_agent(subject, chunks, tag_result, attendees_list=None, agend
         elif n <= 3:
             # 1번: 모두 구체적으로
             small_talk = [
-                ", ".join([f"{round(s,1)}분~{round(e,1)}분" for s, e in merged_ranges]) + " 구간에서 관련 없는 대화가 많았습니다."
+                ", ".join([f"{round(s,1)}분~{round(e,1)}분" for s, e in merged_ranges]) + " 구간에서 관련 없는 대화가 있었습니다."
             ]
         elif n <= 6:
             # 2번: 대표 2개만 + 등
             details = ", ".join([f"{round(s,1)}~{round(e,1)}분" for s, e in merged_ranges[:2]])
-            small_talk = [f"총 {n}개의 잡담 구간({details} 등)에서 관련 없는 대화가 많았습니다."]
+            small_talk = [f"총 {n}개의 잡담 구간({details} 등)에서 관련 없는 대화가 있었습니다."]
         else:
             # 3번: 대표 3개만 + 외 N개
             details = ", ".join([f"{round(s,1)}~{round(e,1)}분" for s, e in merged_ranges[:3]])
-            small_talk = [f"총 {n}개의 잡담 구간({details} 외 {n-3}개)에서 관련 없는 대화가 많았습니다."]
+            small_talk = [f"총 {n}개의 잡담 구간({details} 외 {n-3}개)에서 관련 없는 대화가 있었습니다."]
     else:
         for start, end in chit_chat_ranges:
             start_min = start + 1
             end_min = end + 1
-            small_talk.append(f"{start_min}분~{end_min}분 구간에서 관련 없는 대화가 많았습니다.")
+            small_talk.append(f"{start_min}분~{end_min}분 구간에서 관련 없는 대화가 있었습니다.")
     if not small_talk:
         small_talk = ["잡담 구간이 뚜렷하게 나타나지 않았습니다."]
 
@@ -204,23 +204,117 @@ async def feedback_agent(subject, chunks, tag_result, attendees_list=None, agend
         else:
             missing_agenda_issues = "모든 안건이 논의되었습니다."
 
-    sentence_counter = Counter([s.get('sentence', '') for s in tag_result if isinstance(s, dict)])
-    duplicated = [(sent, cnt) for sent, cnt in sentence_counter.items() if cnt > 1 and sent.strip()]
-    duplicated_info = []
-    for sent, cnt in duplicated:
-        idxs = [i for i, s in enumerate(tag_result) if isinstance(s, dict) and s.get('sentence', '') == sent]
-        if idxs:
-            start_min = idxs[0] + 1
-            end_min = idxs[-1] + 1
-            duplicated_info.append(f"'{sent[:20]}...' 내용이 {cnt}회({start_min}~{end_min}분) 반복")
-    if percent_3 + percent_2 >= 70 and not duplicated_info:
-        meeting_time_analysis = "회의 시간이 매우 효율적으로 사용되었습니다. 중복된 발언이 거의 없었습니다."
-    elif percent_0 >= 20:
-        meeting_time_analysis = f"회의 중 {percent_0}%가 잡담 등 비효율적으로 사용되었습니다."
-    elif duplicated_info:
-        meeting_time_analysis = "중복된 발언이 발견됨: " + '; '.join(duplicated_info)
+    # LLM을 활용한 회의 효율성 분석
+    meeting_efficiency_analysis = {}
+    sentences = [s.get('sentence', '') for s in tag_result if isinstance(s, dict) and s.get('sentence', '').strip()]
+    
+    if len(sentences) > 1:
+        # 회의 효율성 분석을 위한 LLM 프롬프트
+        efficiency_analysis_prompt = f"""
+        다음 회의록을 분석하여 회의 효율성을 평가해주세요.
+
+        **회의 주제:** {subject}
+        **회의 안건:** {agenda if agenda else "안건 없음"}
+        **회의 문장들:**
+        {chr(10).join([f"{i+1}. {sent}" for i, sent in enumerate(sentences)])}
+
+        **분석 기준:**
+        1️⃣ 주제 집중도: 특정 주제가 전체의 50% 이상 차지하는지
+        2️⃣ 주제 전환 빈도: 얼마나 다양한 주제를 논의했는지
+        3️⃣ 주제별 논의 시간의 편중 여부: 모든 주제가 비슷한 시간으로 배분됐는지
+        4️⃣ 동일 주제 반복 정도: 같은 주제가 새로운 정보 없이 여러 차례 등장했는지
+        5️⃣ 회의 목표 달성 여부: 안건에 따라 각 주제가 실질적 진전을 이뤘는지
+
+        **응답 형식 (정확히 이 형식으로만 답변):**
+        총 주제 수: [숫자]개
+        주요 주제별 소요 시간:
+        - 주제명1: [비율]% (중복 논의 [횟수]회)
+        - 주제명2: [비율]% (중복 논의 [횟수]회)
+        - 기타: [비율]%
+        주제 전환 빈도: [높음/보통/낮음] (주제 간 전환 [횟수]회)
+        주제별 편중: [편중 정도 설명]
+        효율 평가: [종합 평가]
+        
+        **문체 지침:**
+        - 모든 문장은 '-습니다' 체로 작성해주세요.
+        - 예: "됨" → "되었습니다", "할애됨" → "할애되었습니다", "이루었다" → "이루었습니다"
+        """
+        
+        try:
+            efficiency_response = await llm.ainvoke(efficiency_analysis_prompt)
+            response_content = efficiency_response.content
+            if isinstance(response_content, list):
+                response_content = ' '.join(str(item) for item in response_content)
+            response_content = response_content.strip()
+            
+            # 응답 파싱하여 효율성 분석 정보 추출
+            lines = response_content.split('\n')
+            current_section = None
+            topic_time_info = []
+            
+            for line in lines:
+                line = line.strip()
+                if line.startswith("총 주제 수:"):
+                    meeting_efficiency_analysis["총 주제 수"] = line.replace("총 주제 수:", "").strip()
+                elif line.startswith("주요 주제별 소요 시간:"):
+                    current_section = "topics"
+                elif line.startswith("주제 전환 빈도:"):
+                    meeting_efficiency_analysis["주제 전환 빈도"] = line.replace("주제 전환 빈도:", "").strip()
+                    current_section = None
+                elif line.startswith("주제별 편중:"):
+                    meeting_efficiency_analysis["주제별 편중"] = line.replace("주제별 편중:", "").strip()
+                    current_section = None
+                elif line.startswith("효율 평가:"):
+                    meeting_efficiency_analysis["효율 평가"] = line.replace("효율 평가:", "").strip()
+                    current_section = None
+                elif current_section == "topics" and line.startswith("- "):
+                    topic_time_info.append(line[2:].strip())
+            
+            meeting_efficiency_analysis["주요 주제별 소요 시간"] = topic_time_info
+                        
+        except Exception as e:
+            print(f"[lang_feedback] 회의 효율성 분석 중 오류 발생: {e}", flush=True)
+            # 오류 발생 시 기본값 설정
+            meeting_efficiency_analysis = {
+                "총 주제 수": "분석 불가",
+                "주요 주제별 소요 시간": ["분석 중 오류 발생"],
+                "주제 전환 빈도": "분석 불가",
+                "주제별 편중": "분석 불가",
+                "효율 평가": "분석 중 오류가 발생하여 평가할 수 없습니다"
+            }
+    # 회의 효율성 분석 결과를 회의 시간 분석으로 통합
+    if meeting_efficiency_analysis and "효율 평가" in meeting_efficiency_analysis:
+        # 효율성 분석 결과를 상세하게 포맷팅
+        analysis_parts = []
+        
+        if "총 주제 수" in meeting_efficiency_analysis:
+            analysis_parts.append(f"총 주제 수: {meeting_efficiency_analysis['총 주제 수']}")
+        
+        if "주요 주제별 소요 시간" in meeting_efficiency_analysis and meeting_efficiency_analysis["주요 주제별 소요 시간"]:
+            topic_times = meeting_efficiency_analysis["주요 주제별 소요 시간"]
+            if len(topic_times) > 0:
+                analysis_parts.append("주요 주제별 소요 시간: " + "; ".join(topic_times))
+        
+        if "주제 전환 빈도" in meeting_efficiency_analysis:
+            analysis_parts.append(f"주제 전환 빈도: {meeting_efficiency_analysis['주제 전환 빈도']}")
+        
+        if "주제별 편중" in meeting_efficiency_analysis:
+            analysis_parts.append(f"주제별 편중: {meeting_efficiency_analysis['주제별 편중']}")
+        
+        if "효율 평가" in meeting_efficiency_analysis:
+            analysis_parts.append(f"효율 평가: {meeting_efficiency_analysis['효율 평가']}")
+        
+        meeting_time_analysis = " | ".join(analysis_parts) if analysis_parts else "회의 효율성 분석이 완료되었습니다."
     else:
-        meeting_time_analysis = "회의 시간이 비교적 효율적으로 사용되었습니다."
+        # 기본 분석 (폴백)
+        if percent_3 + percent_2 >= 70:
+            fallback_text = "회의 시간이 매우 효율적으로 사용되었습니다."
+        elif percent_0 >= 20:
+            fallback_text = f"회의 중 {percent_0}%가 잡담 등 비효율적으로 사용되었습니다."
+        else:
+            fallback_text = "회의 시간이 비교적 효율적으로 사용되었습니다."
+        
+        meeting_time_analysis = fallback_text
 
     overall = (
         f"이번 회의에서 핵심 관련 발언(3점)은 {percent_3}%, 관련 발언(2점)은 {percent_2}%로,\n"
