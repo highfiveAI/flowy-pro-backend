@@ -86,7 +86,7 @@ async def feedback_agent(subject, chunks, tag_result, attendees_list=None, agend
         elif n <= 3:
             # 1번: 모두 구체적으로
             small_talk = [
-                ", ".join([f"{round(s,1)}분~{round(e,1)}분" for s, e in merged_ranges]) + " 구간에서 관련 없는 대화가 많았습니다."
+                ", ".join([f"{round(s,1)}분~{round(e,1)}분" for s, e in merged_ranges]) + " 구간에서 관련 없는 대화가 있었습니다."
             ]
         elif n <= 6:
             # 2번: 대표 2개만 + 등
