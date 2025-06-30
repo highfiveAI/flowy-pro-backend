@@ -15,12 +15,12 @@ embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/distiluse-b
 # 2. PGVector에 연결
 vector_store = PGVector(
     collection_name="scenarios", 
-    connection="postgresql+psycopg2://postgres:0587@localhost:5432/postgres",
+    connection="postgresql+psycopg2://postgres:1111@192.168.0.117:5432/postgres",
     embeddings=embeddings, 
 )
 
 google_api_key = settings.GOOGLE_API_KEY
-db = SQLDatabase.from_uri("postgresql+psycopg2://postgres:0587@localhost:5432/postgres")
+db = SQLDatabase.from_uri("postgresql+psycopg2://postgres:1111@192.168.0.117:5432/postgres")
 
 if not google_api_key:
     print("Warning: API keys not properly loaded.")
@@ -70,17 +70,44 @@ description = (
     "You must always include document content and metadata in your final answer."
 )
 
-suffix = (
-    "When searching for information related to the user’s query, always use the search_similar_scenarios tool. "
-    "You must execute this exactly once per input — no more, no less. For each search, retrieve only a single tuple from the database. "
-    "You must always include document content and metadata in your final answer. "
-    "Always return the response as a JSON object with the following structure: "
-    "{ 'results': [...], 'llm_summary': '...' }. "
-    "Do not return anything outside this JSON format."
-    "If the retrieved results are empty or contain no relevant information, politely inform the user in Korean that you couldn't find relevant information."
-    "Try to encourage the user to ask in a different way or provide more details."
-    "Respond kindly and clearly in Korean."
-)
+suffix = """\
+When searching for information related to the user’s query, always use the `search_similar_scenarios` tool.
+You must execute this tool **exactly once per input** — no more, no less.
+For each search, retrieve **only a single tuple** from the database.
+You must always include both the document content and metadata in your final answer.
+
+The contents of the `results` array must **only** include the data retrieved from the `search_similar_scenarios` tool.
+Do **not** generate or fabricate any content inside the `results` array.
+
+Your own response as a language model must be placed **only** inside the `llm_summary` field.
+This is where you summarize, explain, or guide the user in natural language.
+
+You are an API responder. You must **always** output a valid JSON string inside a Markdown code block using ```json.
+
+The JSON must contain:
+- A `results` array, with at least one object having `document` and (optionally) `metadata.link`.
+- A `llm_summary` field that contains your natural language explanation.
+
+Rules:
+- Use **double quotes only**. Never use single quotes in keys or string values.
+- Do **not** include any text before or after the code block.
+- The JSON must be valid and parsable with `JSON.parse()` in JavaScript.
+
+Output format example:
+
+```json
+{
+  "results": [
+    {
+      "document": "only document",
+      "metadata": {
+        "link": "https://example.com"
+      }
+    }
+  ],
+  "llm_summary": "이 문서는 사용자의 질문에 관련된 정보를 담고 있습니다."
+}
+"""
 
 system = f"{system_message}\n\n{suffix}"
 
@@ -98,7 +125,7 @@ def custom_retriever_tool(query: str) -> str:
     doc, score = results_with_score[0]
     print(f"🔎 유사도 점수: {score:.3f}")
 
-    THRESHOLD = 0.80  # 유사도 기준
+    THRESHOLD = 0.88  # 유사도 기준
     if score > THRESHOLD:
         return json.dumps({"results": []}, ensure_ascii=False)
 
