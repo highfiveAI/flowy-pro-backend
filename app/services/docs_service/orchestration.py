@@ -1,7 +1,7 @@
 from langchain.agents import Tool, initialize_agent
 from langchain.agents.agent_types import AgentType
 from langchain_community.chat_models import ChatOpenAI
-from app.services.search_service.lang_search import run_langchain_search
+# from app.services.search_service.lang_search import run_langchain_search
 from langchain_google_genai import ChatGoogleGenerativeAI
 from app.services.docs_service.docs_recommend import run_doc_recommendation
 from app.core.config import settings
@@ -645,6 +645,7 @@ async def fallback_processing(meeting_text: str, db=None, meeting_id=None) -> st
                 continue
     else:
         print("[Fallback] 내부 문서 양식 검색 불필요.")
+
 
     return "\n\n".join(results) if results else "이 회의에서는 문서 양식을 검색할 필요가 없습니다."
 
