@@ -51,11 +51,10 @@ filter type: pdf
 Use the function search_and_extract_links with the following format for the input parameter.
 {keyword1, keyword2 ...}
 After performing the search, return the results in the following format:
-result {
+
     keyword1: {links...},
     keyword2: {links...},
     ...
-}
 """
 
 system = f"{system_message}\n\n{suffix}"
