@@ -67,22 +67,26 @@ async def get_project_users_with_projects_by_user_id(
 
 async def get_meetings_with_users_by_project_id(
     db: AsyncSession, project_id: UUID
-) -> list[Meeting]:
+) -> list[dict]:
+    """
+    프로젝트의 실제 진행된 회의와 분석 상태를 반환합니다.
+    거부된 예정 회의는 제외합니다.
+    """
     stmt = (
         select(Meeting)
         .where(
             Meeting.project_id == project_id,
-            Meeting.summary_logs.any(),  # ✅ 요약 로그가 존재하는 회의만
-            Meeting.feedbacks.any()      # ✅ 피드백이 존재하는 회의만
+            ~Meeting.meeting_title.like("[거부됨]%")  # 거부된 예정 회의 제외
         )
         .options(
-            selectinload(Meeting.meeting_users).selectinload(MeetingUser.user)  # 유저 정보까지
-            # selectinload(Meeting.meeting_users).selectinload(MeetingUser.role)   # 역할 정보도 포함하고 싶다면
+            selectinload(Meeting.meeting_users).selectinload(MeetingUser.user),
+            selectinload(Meeting.summary_logs),
+            selectinload(Meeting.feedbacks)
         )
         .order_by(desc(Meeting.meeting_date))
     )
     result = await db.execute(stmt)
-    return result.scalars().all()
+    meetings = result.scalars().all()
     
     # 각 회의에 분석 상태 추가
     meeting_data = []
