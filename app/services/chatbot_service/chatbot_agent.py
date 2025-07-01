@@ -1,6 +1,7 @@
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_postgres import PGVector
 from app.core.config import settings
+# from langchain_community.utilities import SQLDatabase
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.agents.agent_toolkits import create_retriever_tool
 # from langchain_community.agent_toolkits import SQLDatabaseToolkit
