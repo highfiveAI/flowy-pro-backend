@@ -10,21 +10,14 @@ from contextlib import asynccontextmanager
 import aioboto3
 from botocore.exceptions import ClientError
 import re
-from typing import List, Dict, Any
 
-# .env 파일 로드
 load_dotenv()
 
-# Google API Key 설정 (환경 변수 또는 settings.py에서 가져옴)
-# `os.getenv`를 사용하여 환경 변수를 우선적으로 확인합니다.
+# Gemini Pro 모델 초기화
 google_api_key = os.getenv("GOOGLE_API_KEY", settings.GOOGLE_API_KEY)
-if not google_api_key:
-    raise ValueError("GOOGLE_API_KEY is not set in environment variables or settings.")
-
-# # Gemini Pro 모델 초기화
-# # Note: 이제 llm 변수가 ChatGoogleGenerativeAI 인스턴스입니다.
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0, google_api_key=google_api_key)
 
+# OpenAI 모델 초기화
 # openai_api_key = settings.OPENAI_API_KEY
 # llm = ChatOpenAI(temperature=0)
 
@@ -34,7 +27,7 @@ AWS_SECRET_KEY = os.getenv("AWS_SECRET_KEY")
 AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME")
 AWS_REGION = os.getenv("AWS_REGION", "ap-southeast-2")
 
-# S3 클라이언트 설정 (비동기)
+# S3 클라이언트 설정
 session = aioboto3.Session(
     aws_access_key_id=AWS_ACCESS_KEY,
     aws_secret_access_key=AWS_SECRET_KEY,
@@ -239,7 +232,7 @@ async def recommend_documents(role_text: str, k: int = 1) -> dict:
             "error": f"문서 추천 중 오류 발생: {str(e)}"
         }
 
-# 테스트 실행 함수
+# 실행 함수
 async def run_doc_recommendation(query: str) -> dict:
     """문서 추천 실행 함수"""
     print(f"\n[입력된 역할/업무 내용]\n{query}\n")

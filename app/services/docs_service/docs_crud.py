@@ -1,10 +1,7 @@
-# app/services/docs_service/docs_crud.py
-
 import os
 from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
-import tempfile
 import aiofiles
 import aioboto3
 import PyPDF2
@@ -19,15 +16,13 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.future import select
 import base64
-import fitz  # PyMuPDF
-import pptx  # python-pptx
+import fitz
+import pptx
 
 from app.models.interdoc import Interdoc
 
-# 환경 변수 로드
 load_dotenv()
 
-# DB 연결 설정 (비동기)
 DATABASE_URL = os.getenv('CONNECTION_STRING').replace('postgresql://', 'postgresql+asyncpg://')
 engine = create_async_engine(DATABASE_URL, echo=True)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -39,14 +34,14 @@ async def get_db():
         finally:
             await session.close()
 
-# S3 클라이언트 설정 (비동기)
+# S3 클라이언트 설정
 session = aioboto3.Session(
     aws_access_key_id=os.getenv('AWS_ACCESS_KEY'),
     aws_secret_access_key=os.getenv('AWS_SECRET_KEY'),
     region_name=os.getenv('AWS_REGION')
 )
 
-# OpenAI 클라이언트 설정 (비동기)
+# OpenAI 클라이언트
 openai_client = AsyncOpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
 # 문서 임베딩 모델 초기화
@@ -111,14 +106,10 @@ async def read_file_content(file: UploadFile) -> str:
                 for sheet in workbook.sheetnames:
                     worksheet = workbook[sheet]
                     sheet_content = []
-                    
-                    # 시트 이름 추가
                     sheet_content.append(f"[시트: {sheet}]")
-                    
-                    # 각 행의 데이터를 읽음
                     for row in worksheet.iter_rows():
                         row_values = [str(cell.value) if cell.value is not None else '' for cell in row]
-                        if any(row_values):  # 빈 행 제외
+                        if any(row_values):
                             sheet_content.append(' | '.join(row_values))
                     
                     sheets_content.append('\n'.join(sheet_content))
@@ -232,7 +223,6 @@ async def extract_text_from_file(file: UploadFile) -> str:
                 {"role": "system", "content": "당신은 문서 분석 전문가입니다. 이미지로 된 문서의 용도와 종류를 한 문장으로 요약하세요."},
                 {"role": "user", "content": prompt.strip()}
             ]
-            # 이미지 1~2장만 vision에 전달
             for img_b64 in content[:2]:
                 messages.append({
                     "role": "user",
@@ -293,7 +283,6 @@ async def create_document(
         filename = file.filename
         if filename.startswith('예스폼_'):
             filename = filename[len('예스폼_'):]
-        # 파일 객체의 filename도 수정
         file.filename = filename
         content = await extract_text_from_file(file)
         embedding = model.encode(content)
