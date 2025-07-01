@@ -26,7 +26,7 @@ async def split_agenda(agenda: str):
     return _sync_split_agenda(agenda)
 
 async def feedback_agent(subject, chunks, tag_result, attendees_list=None, agenda=None, meeting_date=None, meeting_duration_minutes=None):
-    print(f"[lang_feedback] meeting_duration_minutes: {meeting_duration_minutes}", flush=True)
+    # print(f"[lang_feedback] meeting_duration_minutes: {meeting_duration_minutes}", flush=True)
     score_char_count = {0: 0, 1: 0, 2: 0, 3: 0}
     total_chars = 0
     for s in tag_result:
@@ -192,7 +192,7 @@ async def feedback_agent(subject, chunks, tag_result, attendees_list=None, agend
                     not_discussed.append(item)
                     
             except Exception as e:
-                print(f"[lang_feedback] 안건 분석 중 오류 발생: {e}", flush=True)
+                # print(f"[lang_feedback] 안건 분석 중 오류 발생: {e}", flush=True)
                 # 오류 발생 시 기존 방식으로 폴백
                 if item and item in meeting_text:
                     discussed.append(item)
@@ -273,7 +273,7 @@ async def feedback_agent(subject, chunks, tag_result, attendees_list=None, agend
             meeting_efficiency_analysis["주요 주제별 소요 시간"] = topic_time_info
                         
         except Exception as e:
-            print(f"[lang_feedback] 회의 효율성 분석 중 오류 발생: {e}", flush=True)
+            # print(f"[lang_feedback] 회의 효율성 분석 중 오류 발생: {e}", flush=True)
             # 오류 발생 시 기본값 설정
             meeting_efficiency_analysis = {
                 "총 주제 수": "분석 불가",
@@ -330,7 +330,7 @@ async def feedback_agent(subject, chunks, tag_result, attendees_list=None, agend
         "개선 가이드": guide
     }
 
-    print("[lang_feedback] 피드백 결과:", feedback, flush=True)
+    # print("[lang_feedback] 피드백 결과:", feedback, flush=True)
     return {
         "feedback": feedback,
         "overall": overall,
