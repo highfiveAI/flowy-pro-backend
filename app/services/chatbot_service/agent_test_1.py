@@ -9,6 +9,7 @@ from langgraph.graph import START, StateGraph
 from langgraph.checkpoint.memory import MemorySaver
 
 google_api_key = settings.GOOGLE_API_KEY
+CONNECTION_STRING = settings.SYNC_CONNECTION_STRING
 
 if not google_api_key:
     print("Warning: API keys not properly loaded.")
@@ -21,8 +22,8 @@ llm = ChatGoogleGenerativeAI(
     max_retries=2,
     google_api_key=google_api_key,
 )
-# CONNECTION_STRING = settings.CONNECTION_STRING
-db = SQLDatabase.from_uri("postgresql+psycopg2://postgres:0587@localhost:5432/postgres")
+
+db = SQLDatabase.from_uri(CONNECTION_STRING)
 
 print(db.dialect)
 print(db.get_usable_table_names())
