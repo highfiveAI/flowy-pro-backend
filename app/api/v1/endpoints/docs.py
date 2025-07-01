@@ -1,6 +1,6 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends # Form, Depends 임포트 추가
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
 from pydantic import BaseModel
-from typing import List, Optional, Annotated, Any, Dict # Any, Dict 임포트 추가
+from typing import List, Optional, Annotated, Any, Dict
 from uuid import UUID
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,11 +15,12 @@ from app.services.docs_service.docs_crud import (
     delete_document
 )
 from app.services.admin_service.admin_check import require_company_admin
-from sqlalchemy.orm import Session # Session 임포트 추가
-from app.services.docs_service.docs_crud import get_db # get_db 함수 임포트 (서비스 파일에 정의되어 있음)
+from sqlalchemy.orm import Session
+from app.services.docs_service.docs_crud import get_db
 from sqlalchemy import select
 from app.services.docs_service.draft_log_crud import get_draft_logs_by_meeting_id
 from app.schemas.meeting import DraftLogResponse
+from app.services.docs_service.orchestration import super_agent_for_meeting
 
 router = APIRouter()
 
@@ -48,6 +49,10 @@ class DocumentResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class SuperAgentRequest(BaseModel):
+    meeting_text: str
+    meeting_id: Optional[str] = None
+
 @router.post("/recommend", response_model=Dict[str, Any], dependencies=[Depends(require_company_admin)])
 async def recommend_documents_route(request: DocumentRecommendRequest):
     """
@@ -55,7 +60,6 @@ async def recommend_documents_route(request: DocumentRecommendRequest):
     - **query**: 검색할 역할 또는 업무 내용
     """
     try:
-        # 서비스 함수 직접 호출
         result = await run_doc_recommendation(request.query)
         return result
         
@@ -67,12 +71,10 @@ async def recommend_documents_route(request: DocumentRecommendRequest):
 
 @router.post("/", response_model=DocumentResponse)
 async def create_new_document(
-    # FormData에서 값을 받으려면 Form()을 사용해야 합니다.
-    # Annotated와 Form을 함께 사용하여 타입 힌트를 명확히 합니다.
     update_user_id: Annotated[UUID, Form(description="업로드 사용자 ID")],
     doc_type: Annotated[str, Form(description="문서 유형")],
-    file: UploadFile = File(description="업로드할 파일"), # File(...)은 File()로 변경
-    db: Session = Depends(get_db) # DB 세션 주입
+    file: UploadFile = File(description="업로드할 파일"),
+    db: Session = Depends(get_db)
 ):
     """
     새로운 문서를 업로드합니다.
@@ -81,14 +83,14 @@ async def create_new_document(
     - **file**: 업로드할 파일
     - **update_user_id**: 업로드 사용자 ID
     """
-    return await create_document(db, file, doc_type, update_user_id) # db 객체 전달
+    return await create_document(db, file, doc_type, update_user_id)
 
 @router.put("/{doc_id}", response_model=DocumentResponse)
 async def update_existing_document(
-    doc_id: UUID, # 경로 파라미터는 Form으로 받을 필요 없음
+    doc_id: UUID,
     update_user_id: Annotated[UUID, Form(description="수정 사용자 ID")],
-    file: UploadFile = File(description="새로운 파일"), # File(...)은 File()로 변경
-    db: Session = Depends(get_db) # DB 세션 주입
+    file: UploadFile = File(description="새로운 파일"),
+    db: Session = Depends(get_db)
 ):
     """
     기존 문서를 수정합니다.
@@ -97,13 +99,13 @@ async def update_existing_document(
     - **file**: 새로운 파일
     - **update_user_id**: 수정 사용자 ID
     """
-    return await update_document(db, doc_id, file, update_user_id) # db 객체 전달
+    return await update_document(db, doc_id, file, update_user_id)
 
 @router.get("/", response_model=List[DocumentResponse], dependencies=[Depends(require_company_admin)])
 async def get_all_documents(
     skip: int = 0,
     limit: int = 200,
-    db: Session = Depends(get_db) # DB 세션 주입
+    db: Session = Depends(get_db)
 ):
     """
     문서 목록을 조회합니다.
@@ -111,19 +113,19 @@ async def get_all_documents(
     - **skip**: 건너뛸 문서 수
     - **limit**: 조회할 문서 수
     """
-    return await get_documents(db, skip, limit) # db 객체 전달
+    return await get_documents(db, skip, limit)
 
 @router.get("/{doc_id}", response_model=DocumentResponse)
 async def get_single_document(
     doc_id: UUID,
-    db: Session = Depends(get_db) # DB 세션 주입
+    db: Session = Depends(get_db)
 ):
     """
     단일 문서를 조회합니다.
     
     - **doc_id**: 조회할 문서 ID
     """
-    doc = await get_document(doc_id, db) # db 객체 전달
+    doc = await get_document(db, doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="문서를 찾을 수 없습니다")
     return doc
@@ -131,14 +133,14 @@ async def get_single_document(
 @router.delete("/{doc_id}")
 async def delete_existing_document(
     doc_id: UUID,
-    db: Session = Depends(get_db) # DB 세션 주입
+    db: Session = Depends(get_db)
 ):
     """
     문서를 삭제합니다.
     
     - **doc_id**: 삭제할 문서 ID
     """
-    result = await delete_document(db, doc_id) # db 객체 전달
+    result = await delete_document(db, doc_id)
     if result:
         return {"message": "문서가 성공적으로 삭제되었습니다"}
     raise HTTPException(status_code=500, detail="문서 삭제 중 오류가 발생했습니다")
@@ -162,3 +164,16 @@ async def get_draft_logs_by_meeting(
     """
     draft_logs = await get_draft_logs_by_meeting_id(db, meeting_id)
     return draft_logs
+
+@router.post("/super-agent")
+async def run_super_agent(
+    req: SuperAgentRequest,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """
+    회의 텍스트를 분석하여 내부 문서 추천 에이전트 결과를 반환합니다.
+    - meeting_text: 회의 내용 (str)
+    - meeting_id: (선택) DB 저장용 meeting_id
+    """
+    result = await super_agent_for_meeting(req.meeting_text, db=db, meeting_id=req.meeting_id)
+    return {"result": result}

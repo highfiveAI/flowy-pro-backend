@@ -1,15 +1,12 @@
 from typing import List, Optional
 from uuid import UUID
 from fastapi import HTTPException, status
-import os
-from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.future import select
 from app.core.config import settings
 from app.models.company_position import CompanyPosition
 
-# DB 연결 설정 (비동기)
 DB_URL = settings.CONNECTION_STRING.replace('postgresql://', 'postgresql+asyncpg://')
 engine = create_async_engine(
     DB_URL,
@@ -23,7 +20,6 @@ AsyncSessionLocal = sessionmaker(
 class PositionCRUD:
     def __init__(self):
         self.db: AsyncSession = AsyncSessionLocal()
-        # 기본 회사 ID 설정
         self.default_company_id = UUID("7e48a91a-99a9-4013-9015-6281b72920a9")
 
     async def __aenter__(self):
@@ -35,7 +31,6 @@ class PositionCRUD:
     async def create(self, position_data: dict) -> CompanyPosition:
         """새로운 직급을 생성합니다."""
         try:
-            # 직급 코드 중복 검사
             existing_position = await self._get_position_by_code(position_data["position_code"])
             if existing_position:
                 raise HTTPException(
@@ -78,7 +73,6 @@ class PositionCRUD:
         try:
             position = await self.get_by_id(position_id)
 
-            # 직급 코드 중복 검사
             if "position_code" in position_data:
                 existing_position = await self._get_position_by_code(position_data["position_code"])
                 if existing_position and existing_position.position_id != position_id:

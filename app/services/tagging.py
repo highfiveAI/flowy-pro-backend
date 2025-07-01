@@ -7,14 +7,55 @@ from app.services.lang_summary import lang_summary
 from app.services.lang_feedback import feedback_agent
 from app.services.lang_role import assign_roles
 from app.services.lang_todo import extract_todos
+from app.services.lang_previewmeeting import lang_previewmeeting
 from typing import List, Dict, Any
-from app.crud.crud_meeting import insert_summary_log, insert_task_assign_log, insert_feedback_log, get_feedback_type_map
+from app.crud.crud_meeting import insert_summary_log, insert_task_assign_log, insert_feedback_log, get_feedback_type_map, insert_prompt_log
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.notify_email_service import send_meeting_email
 from openai import AsyncOpenAI
 from app.services.calendar_service.calendar_crud import insert_calendar_from_task
+from datetime import datetime
 
 openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+async def save_prompt_log(db: AsyncSession, meeting_id: str, agent_type: str, prompt_output: Any, input_date: datetime = None, output_date: datetime = None):
+    """
+    프롬프트 로그를 저장하는 헬퍼 함수
+    
+    Args:
+        db: 데이터베이스 세션
+        meeting_id: 회의 ID
+        agent_type: 에이전트 타입 ('search', 'summary', 'docs')
+        prompt_output: 에이전트 결과물
+        input_date: 프롬프트 입력 시간 (선택적)
+        output_date: 프롬프트 출력 시간 (선택적)
+    """
+    try:
+        current_time = datetime.now()
+        
+        # 날짜가 제공되지 않은 경우 현재 시간 사용
+        prompt_input_date = input_date or current_time
+        prompt_output_date = output_date or current_time
+        
+        # 결과물을 JSON 문자열로 변환
+        if isinstance(prompt_output, (dict, list)):
+            output_str = json.dumps(prompt_output, ensure_ascii=False, default=str)
+        else:
+            output_str = str(prompt_output)
+        
+        await insert_prompt_log(
+            db=db,
+            meeting_id=meeting_id,
+            agent_type=agent_type,
+            prompt_output=output_str,
+            prompt_input_date=prompt_input_date,
+            prompt_output_date=prompt_output_date
+        )
+        print(f"[tagging.py] {agent_type.upper()} 프롬프트 로그 저장 완료 (입력: {prompt_input_date}, 출력: {prompt_output_date})", flush=True)
+        
+    except Exception as e:
+        print(f"[tagging.py] {agent_type.upper()} 프롬프트 로그 저장 오류: {e}", flush=True)
 
 async def gpt_score_sentence_async(subject, prev_sent, target_sent, next_sent):
     """
@@ -84,7 +125,7 @@ async def gpt_split_sentences(text: str) -> list:
         print(f"[gpt_split_sentences] 오류: {e}", flush=True)
         return [text]
 
-async def tag_chunks_async(project_name: str, subject: str, chunks: list, attendees_list: List[Dict[str, Any]] = None, agenda: str = None, meeting_date: str = None, db: Session = None, meeting_id: str = None, meeting_duration_minutes: float = None) -> dict:
+async def tag_chunks_async(project_name: str, subject: str, chunks: list, attendees_list: List[Dict[str, Any]] = None, agenda: str = None, meeting_date: str = None, db: AsyncSession = None, meeting_id: str = None, meeting_duration_minutes: float = None) -> dict:
     print(f"[tag_chunks] 전달받은 subject: {subject}", flush=True)
     print(f"[tag_chunks] 전달받은 attendees_list: {attendees_list}", flush=True)
     print(f"[tag_chunks] 전달받은 agenda: {agenda}", flush=True)
@@ -140,8 +181,107 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
         print(f"  [{s['index']+1}] 점수: {s['score']} / 이유: {s['reason']} / 문장: {s['sentence']}", flush=True)
 
     try:
+        # Summary Agent 시작 시간 기록
+        summary_start_time = datetime.now()
+        print(f"[tagging.py] Summary Agent 시작: {summary_start_time}", flush=True)
+        
         # lang_summary 호출
         summary_result = await lang_summary(subject, chunks, sentence_scores, attendees_list, agenda, meeting_date) if attendees_list is not None else await lang_summary(subject, chunks, sentence_scores, None, agenda, meeting_date)
+        
+        # lang_previewmeeting 호출 (예정된 회의 추출)
+        if db is not None and meeting_id is not None:
+            try:
+                print(f"[tagging.py] === 예정된 회의 처리 시작 ===", flush=True)
+                print(f"[tagging.py] meeting_id: {meeting_id}", flush=True)
+                
+                # meeting_id로 project_id 조회
+                from app.models.meeting import Meeting
+                from sqlalchemy import select
+                
+                stmt = select(Meeting).where(Meeting.meeting_id == meeting_id)
+                result = await db.execute(stmt)
+                meeting_record = result.scalar_one_or_none()
+                
+                if meeting_record:
+                    project_id = str(meeting_record.project_id)
+                    print(f"[tagging.py] 조회된 project_id: {project_id}", flush=True)
+                    
+                    # lang_previewmeeting 호출
+                    print(f"[tagging.py] lang_previewmeeting 호출 중...", flush=True)
+                    preview_meeting_data = await lang_previewmeeting(
+                        summary_data=summary_result.get("agent_output", {}) if isinstance(summary_result, dict) else {},
+                        subject=subject,
+                        attendees_list=attendees_list,
+                        project_id=project_id,
+                        meeting_date=meeting_date
+                    )
+                    
+                    print(f"[tagging.py] lang_previewmeeting 결과: {preview_meeting_data}", flush=True)
+                    
+                    # 예정된 회의가 있으면 Meeting 테이블에 insert
+                    if preview_meeting_data:
+                        print(f"[tagging.py] === DB INSERT 시작 ===", flush=True)
+                        
+                        # meeting_id를 String으로 변환하여 parent_meeting_id에 저장
+                        parent_meeting_id_str = str(meeting_id)
+                        print(f"[tagging.py] 원본 meeting_id: {meeting_id} (type: {type(meeting_id)})", flush=True)
+                        print(f"[tagging.py] parent_meeting_id로 저장할 값: {parent_meeting_id_str}", flush=True)
+                        
+                        new_meeting = Meeting(
+                            project_id=preview_meeting_data["project_id"],
+                            meeting_title=preview_meeting_data["meeting_title"],
+                            meeting_date=preview_meeting_data["meeting_date"],
+                            meeting_audio_path=preview_meeting_data["meeting_audio_path"],
+                            parent_meeting_id=parent_meeting_id_str  # 원본회의 ID를 String으로 변환하여 저장
+                        )
+                        print(f"[tagging.py] 생성된 Meeting 객체:", flush=True)
+                        print(f"  - project_id: {new_meeting.project_id}", flush=True)
+                        print(f"  - meeting_title: {new_meeting.meeting_title}", flush=True)
+                        print(f"  - meeting_date: {new_meeting.meeting_date}", flush=True)
+                        print(f"  - meeting_audio_path: {new_meeting.meeting_audio_path}", flush=True)
+                        print(f"  - parent_meeting_id: {new_meeting.parent_meeting_id}", flush=True)
+                        
+                        db.add(new_meeting)
+                        await db.commit()
+                        await db.refresh(new_meeting)
+                        
+                        print(f"[tagging.py] === Meeting INSERT 완료 ===", flush=True)
+                        print(f"[tagging.py] 새로 생성된 meeting_id: {new_meeting.meeting_id}", flush=True)
+                        
+                        # MeetingUser 테이블에 참석자들 insert
+                        if attendees_list:
+                            print(f"[tagging.py] === MeetingUser INSERT 시작 ===", flush=True)
+                            from app.models.meeting_user import MeetingUser
+                            
+                            # role_id 정의
+                            HOST_ROLE_ID = "20ea65e2-d3b7-4adb-a8ce-9e67a2f21999"  # is_host True
+                            MEMBER_ROLE_ID = "a55afc22-b4c1-48a4-9513-c66ff6ed3965"  # is_host False
+                            
+                            for attendee in attendees_list:
+                                user_id = attendee.get('id')
+                                is_host = attendee.get('is_host', False)
+                                role_id = HOST_ROLE_ID if is_host else MEMBER_ROLE_ID
+                                
+                                print(f"[tagging.py] 참석자 추가: {attendee.get('name')} (user_id: {user_id}, is_host: {is_host})", flush=True)
+                                
+                                meeting_user = MeetingUser(
+                                    user_id=user_id,
+                                    meeting_id=new_meeting.meeting_id,
+                                    role_id=role_id
+                                )
+                                db.add(meeting_user)
+                            
+                            await db.commit()
+                            print(f"[tagging.py] === MeetingUser INSERT 완료 ===", flush=True)
+                            print(f"[tagging.py] 총 {len(attendees_list)}명의 참석자 등록 완료", flush=True)
+                        
+                        print(f"[tagging.py] 예정된 회의 등록 완료: {preview_meeting_data['meeting_title']}", flush=True)
+                    else:
+                        print("[tagging.py] 예정된 회의 언급 없음", flush=True)
+                else:
+                    print(f"[tagging.py] project_id를 찾을 수 없음: meeting_id={meeting_id}", flush=True)
+            except Exception as e:
+                print(f"[tagging.py] 예정된 회의 처리 오류: {e}", flush=True)
         
         # lang_feedback 호출
         feedback_result = await feedback_agent(subject, chunks, sentence_scores, attendees_list, agenda, meeting_date, meeting_duration_minutes) if attendees_list is not None else await feedback_agent(subject, chunks, sentence_scores, None, agenda, meeting_date, meeting_duration_minutes)
@@ -149,11 +289,18 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
         # 할 일 추출 agent 호출
         todos_result = await extract_todos(subject, chunks, attendees_list, sentence_scores, agenda, meeting_date)
         assigned_roles = todos_result.get("assigned_roles")
+        
+        # Summary Agent 완료 시간 기록
+        summary_end_time = datetime.now()
+        print(f"[tagging.py] Summary Agent 완료: {summary_end_time} (소요시간: {summary_end_time - summary_start_time})", flush=True)
+        
     except Exception as e:
         print(f"[tag_chunks] 에이전트 호출 오류: {e}", flush=True)
         summary_result = "에이전트 호출 중 오류가 발생했습니다."
         feedback_result = {"오류": "에이전트 호출 중 오류가 발생했습니다."}
         assigned_roles = {}
+        summary_start_time = datetime.now()
+        summary_end_time = datetime.now()
     
     # DB 저장 (db가 있을 때만)
     if db is not None:
@@ -183,6 +330,33 @@ async def tag_chunks_async(project_name: str, subject: str, chunks: list, attend
                     print(f"Unknown feedbacktype_name: {feedbacktype_name}", flush=True)
         else:
             await insert_feedback_log(db, feedback_result, '', meeting_id)
+
+        # ========== 프롬프트 로그 저장 ==========
+        if meeting_id:
+            # Summary Agent 결과 저장 (모든 summary 관련 agent 결과를 하나로 통합)
+            summary_prompt_output = {
+                "lang_summary": summary_result,
+                "lang_feedback": feedback_result,
+                "lang_todo_and_role": assigned_roles,
+                "lang_previewmeeting": preview_meeting_data if 'preview_meeting_data' in locals() else None,
+                "metadata": {
+                    "subject": subject,
+                    "agenda": agenda,
+                    "meeting_date": meeting_date,
+                    "attendees_count": len(attendees_list) if attendees_list else 0
+                }
+            }
+            
+            # 시작/완료 시간을 함께 저장
+            await save_prompt_log(
+                db, 
+                str(meeting_id), 
+                "summary", 
+                summary_prompt_output,
+                input_date=summary_start_time,
+                output_date=summary_end_time
+            )
+
         # 모든 피드백 저장이 끝난 후 이메일 전송 (회의장에게만)
         host = None
         if attendees_list:

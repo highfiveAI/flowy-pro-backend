@@ -65,7 +65,7 @@ async def lang_summary(subject, chunks, tag_result, attendees_list=None, agenda=
 
     이 문장들을 참고해서, 회의 내용을 명사 위주의 항목별로 보기 좋게 정리해줘.
     각 항목은 회의 내용에 따라 너가 판단해서 자유롭게 정하되,
-    - 제목은 이모지와 함께 직관적으로 붙여주고
+    - 제목은 간결하고 명확하게 작성하고
     - 그 아래에는 관련된 **핵심 정보, 키워드, 요점, 일정, 책임자, 우려사항** 등을 구체적으로 정리해줘.
 
     **내용 구성 방식은 자유지만, 다음과 같은 특성을 반드시 지켜줘:**
@@ -85,12 +85,12 @@ async def lang_summary(subject, chunks, tag_result, attendees_list=None, agenda=
 
     ```json
     {{
-      "항목 제목 A 📝": [
+      "항목 제목 A": [
         "핵심 키워드 또는 개요 설명",
         "담당자, 일정, 우선순위 등 구체 정보",
         "실행 계획 또는 협업 방식 등"
       ],
-      "항목 제목 B 📊": [
+      "항목 제목 B": [
         "... 관련 내용들"
       ]
     }}
@@ -101,7 +101,7 @@ async def lang_summary(subject, chunks, tag_result, attendees_list=None, agenda=
 
     # JSON 파싱 시도 (코드블록 제거)
     try:
-        content = agent_output.strip()
+        content = str(agent_output).strip()
         if content.startswith("```json"):
             content = content.removeprefix("```json").removesuffix("```").strip()
         match = re.search(r'\{.*\}', content, re.DOTALL)

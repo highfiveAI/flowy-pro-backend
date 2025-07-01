@@ -73,4 +73,5 @@ agent = initialize_agent(
     llm=chat_model,
     agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
     verbose=True,
+    handle_parsing_errors=True,
 )

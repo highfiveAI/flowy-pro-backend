@@ -37,12 +37,14 @@ jiter==0.10.0
 jsonpatch==1.33
 jsonpointer==3.0.0
 langchain==0.3.25
-langchain-google-genai
+langchain-google-genai==2.1.6
 langchain-community==0.3.24
-langchain-core==0.3.62
+langchain-core==0.3.66
 langchain-openai==0.3.18
 langchain-text-splitters==0.3.8
-langsmith==0.3.43
+langchain_postgres==0.0.15
+langchain-huggingface
+langsmith==0.3.45
 langgraph
 Mako==1.3.10
 MarkupSafe==3.0.2
@@ -58,7 +60,7 @@ openai==1.82.0
 orjson==3.10.18
 packaging==24.2
 passlib[bcrypt]
-pgvector==0.4.1
+pgvector==0.3.1
 propcache==0.3.1
 psycopg2-binary==2.9.10
 pydantic==2.11.5

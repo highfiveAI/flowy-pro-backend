@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, Text, ForeignKey, Boolean, TIMESTAMP, Dat
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
-from app.models.base import Base  # Base는 declarative_base()로 정의된 객체입니다.
+from app.models.base import Base
 
 class Calendar(Base):
     __tablename__ = "calendar"
@@ -17,6 +17,9 @@ class Calendar(Base):
     completed = Column(Boolean, nullable=False)
     created_at = Column(TIMESTAMP, nullable=False)
     updated_at = Column(TIMESTAMP)
+    agent_meeting_id = Column(String(255), nullable=True)
+    status = Column(String(20), nullable=False, default='active')  # 상태 ('active', 'rejected')    
+
 
     user = relationship("FlowyUser", back_populates="calendars")
     project = relationship("Project", back_populates="calendars")
