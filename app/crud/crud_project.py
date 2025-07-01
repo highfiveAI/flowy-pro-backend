@@ -20,37 +20,104 @@ feedbacktype_ids = [
 
 async def get_project_users_with_projects_by_user_id(
     db: AsyncSession, user_id: UUID
-) -> list[ProjectUser]:
+) -> list[dict]:
     """
-    특정 user_id를 가진 ProjectUser들을 조회하고, 각각의 관련된 Project도 함께 가져옵니다.
+    특정 user_id를 가진 사용자가 참여한 프로젝트들과 각 프로젝트의 참여자 수를 반환합니다.
     """
+    # 사용자가 참여한 프로젝트들을 조회
     stmt = (
         select(ProjectUser)
         .where(ProjectUser.user_id == user_id)
-        .options(selectinload(ProjectUser.project))  # Project를 eager load
+        .options(selectinload(ProjectUser.project))
     )
     result = await db.execute(stmt)
-    project_users = result.scalars().all()  # 여기 추가
-    return project_users  # 리스트가 반환됨
+    project_users = result.scalars().all()
+    
+    # 각 프로젝트별로 참여자 수를 계산
+    project_data = []
+    seen_projects = set()
+    
+    for project_user in project_users:
+        project_id = project_user.project_id
+        
+        # 이미 처리한 프로젝트는 스킵
+        if project_id in seen_projects:
+            continue
+        
+        seen_projects.add(project_id)
+        
+        # 해당 프로젝트의 전체 참여자 수 조회
+        count_stmt = select(func.count(ProjectUser.user_id)).where(
+            ProjectUser.project_id == project_id
+        )
+        count_result = await db.execute(count_stmt)
+        user_count = count_result.scalar()
+        
+        # 프로젝트 데이터에 참여자 수 추가
+        project_data.append({
+            "project_user_id": project_user.project_user_id,
+            "user_id": project_user.user_id,
+            "project_id": project_user.project_id,
+            "role_id": project_user.role_id,
+            "project": project_user.project,
+            "user_count": user_count
+        })
+    
+    return project_data
 
 async def get_meetings_with_users_by_project_id(
     db: AsyncSession, project_id: UUID
-) -> list[Meeting]:
+) -> list[dict]:
+    """
+    프로젝트의 실제 진행된 회의와 분석 상태를 반환합니다.
+    거부된 예정 회의는 제외합니다.
+    """
     stmt = (
         select(Meeting)
         .where(
             Meeting.project_id == project_id,
-            Meeting.summary_logs.any(),  # ✅ 요약 로그가 존재하는 회의만
-            Meeting.feedbacks.any()      # ✅ 피드백이 존재하는 회의만
+            ~Meeting.meeting_title.like("[거부됨]%")  # 거부된 예정 회의 제외
         )
         .options(
-            selectinload(Meeting.meeting_users).selectinload(MeetingUser.user)  # 유저 정보까지
-            # selectinload(Meeting.meeting_users).selectinload(MeetingUser.role)   # 역할 정보도 포함하고 싶다면
+            selectinload(Meeting.meeting_users).selectinload(MeetingUser.user),
+            selectinload(Meeting.summary_logs),
+            selectinload(Meeting.feedbacks)
         )
         .order_by(desc(Meeting.meeting_date))
     )
     result = await db.execute(stmt)
-    return result.scalars().all()
+    meetings = result.scalars().all()
+    
+    # 각 회의에 분석 상태 추가
+    meeting_data = []
+    for meeting in meetings:
+        # 분석 상태 판단
+        has_audio_file = meeting.meeting_audio_path != "app/none"
+        has_summary = len(meeting.summary_logs) > 0
+        has_feedback = any(
+            feedback.feedbacktype_id in feedbacktype_ids 
+            for feedback in meeting.feedbacks
+        )
+        
+        # 상태 결정 로직
+        if not has_audio_file:
+            analysis_status = "pending"  # 분석전 (예정 회의, 음성파일 미업로드)
+        elif has_summary and has_feedback:
+            analysis_status = "completed"  # 분석완료
+        else:
+            analysis_status = "analyzing"  # 분석중 (음성파일 있지만 분석 미완료)
+        
+        meeting_data.append({
+            "meeting_id": meeting.meeting_id,
+            "meeting_title": meeting.meeting_title,
+            "meeting_agenda": meeting.meeting_agenda,
+            "meeting_date": meeting.meeting_date,
+            "project_id": meeting.project_id,
+            "meeting_users": meeting.meeting_users,
+            "analysis_status": analysis_status
+        })
+    
+    return meeting_data
 
 async def create_project(
     project_data: ProjectCreate,
@@ -156,20 +223,19 @@ async def get_meeting_detail_with_project_and_users(
 
     return meeting
 
+# # 프로젝트 삭제 함수
+# async def delete_project_by_id(db: AsyncSession, project_id: UUID) -> bool:
+#     # 먼저 해당 프로젝트가 존재하는지 확인
+#     stmt = select(Project).where(Project.project_id == project_id)
+#     result = await db.execute(stmt)
+#     project = result.scalars().first()
 
-# 프로젝트 삭제 함수
-async def delete_project_by_id(db: AsyncSession, project_id: UUID) -> bool:
-    # 먼저 해당 프로젝트가 존재하는지 확인
-    stmt = select(Project).where(Project.project_id == project_id)
-    result = await db.execute(stmt)
-    project = result.scalars().first()
+#     if not project:
+#         return False  # 존재하지 않음
 
-    if not project:
-        return False  # 존재하지 않음
-
-    await db.delete(project)
-    await db.commit()
-    return True  # 삭제 성공
+#     await db.delete(project)
+#     await db.commit()
+#     return True  # 삭제 성공
 
 async def update_project_name_by_id(
     db: AsyncSession,

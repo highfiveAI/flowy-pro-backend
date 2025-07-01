@@ -118,6 +118,8 @@ class AdminUserResponse(BaseModel):
     company_name: str | None = None
 
 
+
+
 router = APIRouter()
 
 # 사용자 관리 API
@@ -152,6 +154,9 @@ async def update_user(user_id: UUID, user: UserUpdate):
     """사용자 정보를 수정합니다."""
     crud = UserCRUD()
     return await crud.update(user_id, user.model_dump(exclude_unset=True))
+
+
+
 
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -209,7 +214,7 @@ async def set_admin_user(user_id: UUID, force: bool = False):
         # 이미 관리자가 있음 → 프론트에 경고 메시지 전달
         return {
             "already_admin": True,
-            "message": "이미 이 회사에 관리자가 있습니다. 선택한 사용자를 관리자로 설정하시겠습니까?"
+            "message": "이미 이 회사에 관리자가 있습니다.\n선택한 사용자를 관리자로 설정하시겠습니까?"
         }
 
     # 3. 실제 관리자 지정 (force 옵션 반영)
