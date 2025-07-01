@@ -1,10 +1,9 @@
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_postgres import PGVector
 from app.core.config import settings
-from langchain_community.utilities import SQLDatabase
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.agents.agent_toolkits import create_retriever_tool
-from langchain_community.agent_toolkits import SQLDatabaseToolkit
+# from langchain_community.agent_toolkits import SQLDatabaseToolkit
 from langgraph.prebuilt import create_react_agent
 from langchain_core.tools import Tool
 import asyncio
@@ -23,7 +22,7 @@ vector_store = PGVector(
 )
 
 
-db = SQLDatabase.from_uri(CONNECTION_STRING)
+# db = SQLDatabase.from_uri(CONNECTION_STRING)
 
 if not google_api_key:
     print("Warning: API keys not properly loaded.")
@@ -37,9 +36,10 @@ llm = ChatGoogleGenerativeAI(
     google_api_key=google_api_key,
 )
 
-toolkit = SQLDatabaseToolkit(db=db, llm=llm)
+# toolkit = SQLDatabaseToolkit(db=db, llm=llm)
 
-tools = toolkit.get_tools()
+# tools = toolkit.get_tools()
+tools = []
 
 system_message = """
 You are an intelligent agent designed to interact with a vector database and provide context-aware responses.
@@ -81,6 +81,7 @@ Rules:
 - Use **double quotes only**. Never use single quotes in keys or string values.
 - Do **not** include any text before or after the code block.
 - The JSON must be valid and parsable with `JSON.parse()` in JavaScript.
+- If Error occurs, return the error message in the `llm_summary` field. Do not return in the `results` array.
 
 Output format example:
 
