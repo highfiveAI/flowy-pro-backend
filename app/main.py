@@ -30,6 +30,7 @@ app = FastAPI(debug=True)
 origins = [
     "http://localhost:5173",  # Vite dev server
     "https://main.d3o9djmc1cbi7u.amplifyapp.com", # 배포서버
+    "https://www.flowyproapi.com", # 배포서버
     "http://192.168.0.117:3001" # 개발서버
 ]
 

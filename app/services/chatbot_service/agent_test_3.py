@@ -10,14 +10,17 @@ from langchain.agents.agent_toolkits import create_retriever_tool
 import ast
 import re
 
+google_api_key = settings.GOOGLE_API_KEY
+CONNECTION_STRING = settings.SYNC_CONNECTION_STRING
+
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
 vector_store = PGVector(
     embeddings=embeddings,
     collection_name="my_docs",
-    connection="postgresql+psycopg2://postgres:0587@localhost:5432/postgres",
+    connection=CONNECTION_STRING,
 )
-google_api_key = settings.GOOGLE_API_KEY
-db = SQLDatabase.from_uri("postgresql+psycopg2://postgres:0587@localhost:5432/postgres")
+
+db = SQLDatabase.from_uri(CONNECTION_STRING)
 
 
 if not google_api_key:

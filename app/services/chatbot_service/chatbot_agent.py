@@ -10,17 +10,20 @@ from langchain_core.tools import Tool
 import asyncio
 import json
 
+google_api_key = settings.GOOGLE_API_KEY
+CONNECTION_STRING = settings.SYNC_CONNECTION_STRING
+
 # 1. 임베딩 모델 준비
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/distiluse-base-multilingual-cased-v2")
 # 2. PGVector에 연결
 vector_store = PGVector(
     collection_name="scenarios", 
-    connection="postgresql+psycopg2://postgres:1111@192.168.0.117:5432/postgres",
+    connection=CONNECTION_STRING,
     embeddings=embeddings, 
 )
 
-google_api_key = settings.GOOGLE_API_KEY
-db = SQLDatabase.from_uri("postgresql+psycopg2://postgres:1111@192.168.0.117:5432/postgres")
+
+db = SQLDatabase.from_uri(CONNECTION_STRING)
 
 if not google_api_key:
     print("Warning: API keys not properly loaded.")
@@ -39,30 +42,12 @@ toolkit = SQLDatabaseToolkit(db=db, llm=llm)
 tools = toolkit.get_tools()
 
 system_message = """
-You are an agent designed to interact with a SQL database.
-Given an input question, create a syntactically correct {dialect} query to run,
-then look at the results of the query and return the answer. Unless the user
-specifies a specific number of examples they wish to obtain, always limit your
-query to at most {top_k} results.
-
-You can order the results by a relevant column to return the most interesting
-examples in the database. Never query for all the columns from a specific table,
-only ask for the relevant columns given the question.
-
-You MUST double check your query before executing it. If you get an error while
-executing a query, rewrite the query and try again.
-
-DO NOT make any DML statements (INSERT, UPDATE, DELETE, DROP etc.) to the
-database.
-
-To start you should ALWAYS look at the tables in the database to see what you
-can query. Do NOT skip this step.
-
-Then you should query the schema of the most relevant tables.
-""".format(
-    dialect="postgres",
-    top_k=5,
-)
+You are an intelligent agent designed to interact with a vector database and provide context-aware responses.
+When you receive a user question, you must first use the `search_similar_scenarios` tool to search for relevant scenarios.
+If no relevant results are found using the tool, you should then generate an appropriate and helpful response using your own knowledge based on the user's question.
+You should not return empty strings (e.g., "") in the response.
+All fields must include meaningful, non-empty values.
+"""
 
 description = (
     "Use semantic similarity search to retrieve the single most relevant entry from the vector database. "
@@ -78,9 +63,13 @@ You must always include both the document content and metadata in your final ans
 
 The contents of the `results` array must **only** include the data retrieved from the `search_similar_scenarios` tool.
 Do **not** generate or fabricate any content inside the `results` array.
+Do not include any data in the `results` array that does not exist in the vector database.
+Never fabricate or hallucinate content in the `results` array — it must only contain actual retrieved data.
 
 Your own response as a language model must be placed **only** inside the `llm_summary` field.
 This is where you summarize, explain, or guide the user in natural language.
+
+If the user asks an unclear, irrelevant, or nonsensical question, still do your best to generate a helpful and appropriate response in the `llm_summary` field.
 
 You are an API responder. You must **always** output a valid JSON string inside a Markdown code block using ```json.
 

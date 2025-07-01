@@ -8,17 +8,20 @@ from langchain_community.agent_toolkits import SQLDatabaseToolkit
 from langgraph.prebuilt import create_react_agent
 import asyncio
 
+google_api_key = settings.GOOGLE_API_KEY
+CONNECTION_STRING = settings.SYNC_CONNECTION_STRING
+
 # 1. 임베딩 모델 준비
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/distiluse-base-multilingual-cased-v2")
 # 2. PGVector에 연결
 vector_store = PGVector(
     collection_name="scenarios", 
-    connection="postgresql+psycopg2://postgres:0587@localhost:5432/postgres",
+    connection=CONNECTION_STRING,
     embeddings=embeddings, 
 )
 
-google_api_key = settings.GOOGLE_API_KEY
-db = SQLDatabase.from_uri("postgresql+psycopg2://postgres:0587@localhost:5432/postgres")
+
+db = SQLDatabase.from_uri(CONNECTION_STRING)
 
 if not google_api_key:
     print("Warning: API keys not properly loaded.")
