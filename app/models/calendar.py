@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, Text, ForeignKey, Boolean, TIMESTAMP, Dat
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
-from app.models.base import Base  # Base는 declarative_base()로 정의된 객체입니다.
+from app.models.base import Base
 
 class Calendar(Base):
     __tablename__ = "calendar"

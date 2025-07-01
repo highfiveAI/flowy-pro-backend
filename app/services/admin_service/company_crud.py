@@ -2,7 +2,6 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
 from fastapi import HTTPException, status
-import os
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
@@ -11,10 +10,8 @@ from sqlalchemy.future import select
 from app.core.config import settings
 from app.models.company import Company
 
-# .env 파일에서 DB 설정 로드
 load_dotenv()
 
-# DB 연결 설정 (비동기)
 DB_URL = settings.CONNECTION_STRING.replace('postgresql://', 'postgresql+asyncpg://')
 engine = create_async_engine(
     DB_URL,
@@ -120,7 +117,6 @@ class CompanyCRUD:
             company = await self.get_by_id(company_id)
             company.service_status = service_status
             
-            # 서비스 상태가 비활성화되는 경우에만 종료일 설정
             if not service_status and service_enddate:
                 company.service_enddate = service_enddate
             

@@ -1,7 +1,7 @@
 from langchain.agents import Tool, initialize_agent
 from langchain.agents.agent_types import AgentType
 from langchain_community.chat_models import ChatOpenAI
-# from app.services.search_service.lang_search import run_langchain_search
+from app.services.search_service.lang_search import run_single_keyword_search
 from langchain_google_genai import ChatGoogleGenerativeAI
 from app.services.docs_service.docs_recommend import run_doc_recommendation
 from app.core.config import settings
@@ -9,97 +9,17 @@ import re
 from app.services.docs_service.draft_log_crud import insert_draft_log
 import asyncio
 import json
-import os # <-- os 모듈 추가 (환경 변수 사용을 위해)
+import os
+from urllib.parse import urlparse
 
-# ==============================================================================
-# 1. LLM 초기화 및 환경 변수 설정
-# ==============================================================================
 
-# Google API Key 설정 (환경 변수 또는 settings.py에서 가져옴)
-# `os.getenv`를 사용하여 환경 변수를 우선적으로 확인합니다.
+# Gemini Pro 모델 초기화
 google_api_key = os.getenv("GOOGLE_API_KEY", settings.GOOGLE_API_KEY)
-if not google_api_key:
-    raise ValueError("GOOGLE_API_KEY is not set in environment variables or settings.")
-
-# # Gemini Pro 모델 초기화
-# # Note: 이제 llm 변수가 ChatGoogleGenerativeAI 인스턴스입니다.
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0, google_api_key=google_api_key)
 
+# OpenAI 모델 초기화
 # openai_api_key = settings.OPENAI_API_KEY
 # llm = ChatOpenAI(temperature=0)
-
-# 검색 도구 실행 함수 - 현재 미사용으로 주석 처리
-# async def smart_search(query: str) -> str:
-#     return run_langchain_search(query)
-
-# 검색 도구 Tool 정의 - 현재 미사용으로 주석 처리
-#search_tool = Tool(
-#     name="Web Search",
-#     func=smart_search,
-#     description="Use this tool to search for document templates like resumes, reports, or proposals."
-# )
-
-# 상위 판단 함수: 외부 문서 양식이 필요한지 여부를 LLM이 결정 - 현재 미사용으로 주석 처리
-# async def should_use_search_tool(meeting_text: str) -> bool:
-#     system_prompt = """
-# 당신은 회의 분석 AI입니다. 아래 회의 내용을 읽고, 이 회의에서 문서 양식(예: 이력서 양식, 보고서 양식, 제안서 양식 등)을 외부에서 검색해야 할 필요가 있는지 판단하세요.
-#
-# 다음 중 하나라도 포함된다면 'Yes'라고 답하세요:
-# - 어떤 문서 양식을 찾으라는 지시가 있다
-# - 양식이 필요하다는 언급이 있다
-# - 문서 작성을 위해 참고 자료가 필요하다는 내용이 있다
-#
-# 단순히 회의 요약이나 업무 분배는 제외합니다.
-#
-# 'Yes' 또는 'No'만 출력하세요.
-# """
-#     prompt = system_prompt + f"\n\n회의 내용:\n{meeting_text}"
-#     response = llm.invoke(prompt).content # <-- .predict() 대신 .invoke().content 사용
-#     return "yes" in response.lower()
-
-# 외부 문서 서칭 상위 에이전트 - 현재 미사용으로 주석 처리
-# async def super_agent_for_meeting(meeting_text: str, db=None, meeting_id=None) -> str:
-#     print("[상위 에이전트] 회의 텍스트 분석 중...")
-#     results = []
-#
-#     # 1. 외부 문서 양식 검색 판단 및 실행 - 미사용으로 주석 처리
-#     if should_use_search_tool(meeting_text):
-#         print("[상위 에이전트] 외부 문서 양식 검색 필요 판단됨.")
-#
-#         # 검색 키워드 추출 프롬프트
-#         extract_prompt = f"""
-#     너는 웹 검색 결과를 기반으로 회의에서 필요한 자료를 찾는 LLM 에이전트야.
-#
-#     다음 회의 내용을 바탕으로, 문서나 가이드가 필요한 경우에는:
-#     1. 필요한 키워드를 생성하고,
-#     2. 해당 키워드로 웹 검색 결과(Observation)를 분석해서,
-#     3. Final Answer에는 반드시 실제 URL을 **하나 이상 포함된 문장**으로 작성해야 해.
-#
-#     **중요 규칙:**
-#     - Final Answer에는 `https://`로 시작하는 실제 링크(URL)를 반드시 넣어야 해. 없는 경우 오류로 간주함.
-#     - `https://example.com/...` 과 같은 예시 URL을 넣으면 안 됨.
-#     - 일반적인 설명, 요약, 의도 파악 말고, 실제 링크만 포함해.
-#     - 예외 없이 Observation에서 나온 실제 링크만 사용해야 함.
-#
-#
-#
-#     회의 내용:
-#     {meeting_text}
-#
-#     너의 응답은 다음 형식을 따라야 해:
-#     - 검색 키워드: ...
-#     - Final Answer: [링크 포함된 설명 문장]
-# """
-#
-#         keyword = llm.invoke(extract_prompt).content # <-- .predict() 대신 .invoke().content 사용
-#         print(f"[상위 에이전트] 외부 검색 키워드: {keyword}")
-#
-#         # 실제 외부 검색 수행
-#         external_result = smart_search(keyword)
-#         results.append(f"**외부 문서 양식:**\n{external_result}")
-#     else:
-#         print("[상위 에이전트] 외부 문서 양식 검색 불필요.")
-
 
 # 문서 필요성 판단 Tool
 async def analyze_meeting_for_documents(meeting_text: str) -> str:
@@ -114,6 +34,9 @@ async def extract_keywords_from_meeting(meeting_text: str) -> str:
 # 내부 문서 추천 Tool
 async def doc_recommendation(query: str) -> dict:
     return await run_doc_recommendation(query)
+
+async def single_keyword_search(query: str) -> str:
+    return await run_single_keyword_search(query)
 
 
 # Tool 인스턴스 생성
@@ -131,11 +54,20 @@ keyword_extraction_tool = Tool(
     coroutine=extract_keywords_from_meeting
 )
 
+# 내부문서
 doc_recommendation_tool = Tool(
     name="Document Recommendation",
     func=doc_recommendation,
     description="Use this tool to recommend documents for the meeting based on keywords extracted from meeting content.",
     coroutine=doc_recommendation
+)
+
+# 외부문서
+doc_external_recommendation_tool = Tool(
+    name="External Document Search",
+    func=single_keyword_search,
+    description="Tool to search and extract link.",
+    coroutine=single_keyword_search
 )
 
 
@@ -195,7 +127,7 @@ async def extract_internal_doc_keywords(meeting_text: str) -> list[str]:
 
 
 # Agent 초기화
-tools = [meeting_analysis_tool, keyword_extraction_tool, doc_recommendation_tool]
+tools = [meeting_analysis_tool, keyword_extraction_tool, doc_recommendation_tool, doc_external_recommendation_tool]
 
 agent = initialize_agent(
     tools=tools,
@@ -208,6 +140,7 @@ agent = initialize_agent(
 def create_agent_prompt(meeting_text: str) -> str:
     """
     Agent가 전체 프로세스를 수행하도록 하는 통합 프롬프트 생성
+    - 문서 추천 결과가 부적절할 경우 외부 검색을 수행하는 로직 추가
     """
     return f"""
 반드시 아래 형식으로 답변하세요:
@@ -215,7 +148,7 @@ Thought: (에이전트의 생각)
 Action: (사용할 도구 이름)
 Action Input: (도구에 넘길 입력값)
     
-당신은 회의 내용을 분석하여 필요한 내부 문서를 추천하는 전문 에이전트입니다.
+당신은 회의 내용을 분석하여 필요한 내부/외부 문서를 추천하는 전문 에이전트입니다.
 다음 단계를 순서대로 수행해주세요:
 
 **1단계: 내부 문서 필요성 판단**
@@ -226,37 +159,58 @@ Action Input: (도구에 넘길 입력값)
 - Keyword Extraction 도구를 사용하여 회의 내용에서 내부 문서 검색용 키워드를 추출하세요.
 - 추출된 키워드들을 확인하고 중복을 제거하세요.
 
-**3단계: 문서 추천 (각 키워드별로)**
-- 2단계에서 추출된 각 키워드에 대해 Document Recommendation 도구를 사용하여 문서를 추천받으세요.
-- 각 키워드별로 별도의 Document Recommendation 호출을 수행하세요.
+**3단계: 문서 추천 및 판단 (각 키워드별로)**
+- 2단계에서 추출된 각 키워드에 대해 Document Recommendation 도구를 사용하여 내부 문서를 추천받으세요.
+- **추천 결과를 받은 후, 다음 조건을 확인하세요:**
+  - `similarity_score`가 0.5 미만인 경우
+  - `relevance_reason` 필드에 '관련성 낮음', '일반적인 참고 자료', '직접적 관련 없음' 등과 같은 부정적인 키워드가 포함된 경우
+- **만약 위 조건 중 하나라도 해당된다면, 4단계로 진행하세요.**
+- 조건에 해당되지 않는다면, 다음 키워드에 대한 3단계를 계속 진행하세요.
+
+**4단계: 외부 문서 검색 (3단계 조건 충족 시)**
+- 3단계에서 관련성이 낮다고 판단된 키워드에 대해, **External Document Search 도구**를 사용하여 외부 웹에서 더 나은 문서를 검색하세요.
+- 이 도구는 `https://`로 시작하는 실제 URL이 포함된 결과를 반환해야 합니다.
 
 **최종 결과 형식:**
-각 키워드별로 다음과 같은 형식으로 결과를 정리해주세요:
+각 키워드별로 다음과 같은 형식으로 모든 결과를 정리해주세요.
+내부 문서 추천 결과와 외부 문서 검색 결과를 모두 포함해야 합니다.
 
 키워드: [키워드명]
-[Document Recommendation 도구가 반환한 JSON 결과를 그대로 복사하여 붙여넣기]
-
+[내부 문서 추천 결과 - Document Recommendation 도구가 반환한 JSON을 그대로 복사하여 붙여넣기]
+[외부 문서 검색 결과 - External Document Search 도구가 반환한 텍스트를 그대로 복사하여 붙여넣기]
 
 **중요 지침:**
-- 반드시 위의 1-2-3 단계를 순서대로 수행하세요.
-- Document Recommendation 도구의 결과는 절대 수정하지 마세요. 받은 JSON을 그대로 출력하세요.
-- download_url 필드의 실제 URL을 임의로 변경하거나 축약하지 마세요.
-- 도구의 결과를 "요약"하거나 "정리"하지 마세요. 원본 그대로 출력하세요.
-- JSON 형식을 유지하고, 모든 필드(title, download_url, similarity_score, relevance_reason)를 그대로 보존하세요.
-= 3단계의 과정이 끝나면 해당 함수를 반드시 무조건 종료하세요. 반복되는 현상을 막기 위함이니 반드시 지키세요
+- 반드시 위의 1-2-3-4 단계를 순서대로 수행하세요.
+- 도구의 결과를 절대 수정하거나 요약하지 마세요. 받은 JSON과 텍스트를 원본 그대로 출력하세요.
+- **`download_url` 필드 값을 변경하지 마세요.** 외부 문서 링크는 별도의 섹션으로 추가하세요.
+- 3단계와 4단계의 과정이 끝나면 해당 함수를 반드시 무조건 종료하세요. 반복되는 현상을 막기 위함이니 반드시 지키세요.
 
 **예시 출력 형식:**
-키워드: 예시키워드
+키워드: 프로젝트 기획안 작성을 위한 문서
 {{
 "documents": [
 {{
-"title": "문서제목.docx",
-"download_url": "https://실제URL주소",
-"similarity_score": 0.85,
-"relevance_reason": "실제 이유 설명"
+"title": "내부_기획안_양식.docx",
+"download_url": "https://내부URL",
+"similarity_score": 0.92,
+"relevance_reason": "프로젝트 기획을 위한 공식 양식"
 }}
 ]
 }}
+키워드: 웹 프로젝트 스토리보드 요구사항 정의를 위한 문서
+{{
+"documents": [
+{{
+"title": "일반_문서_양식.docx",
+"download_url": "https://내부_일반_URL",
+"similarity_score": 0.65,
+"relevance_reason": "전반적인 참고 자료"
+}}
+]
+}}
+외부 검색 결과:
+- 프로젝트 스토리보드 작성 가이드: https://external-guide.com/storyboard-template
+- 웹 개발 요구사항 정의서 양식: https://external-blog.com/requirements-doc
 
 
 **분석할 회의 내용:**
@@ -293,9 +247,8 @@ async def super_agent_for_meeting(meeting_text: str, db=None, meeting_id=None) -
         
         print("[LangChain Agent] Agent 실행 완료")
         
-        # DB 저장 처리 (기존 로직 유지)
-        if db is not None and meeting_id is not None:
-            await save_results_to_db(final_result, meeting_text, db, meeting_id)
+        # DB 저장 처리 (새로운 버전 사용)
+        await save_results_to_db(final_result, meeting_text, db, meeting_id)
         
         return final_result
         
@@ -307,148 +260,106 @@ async def super_agent_for_meeting(meeting_text: str, db=None, meeting_id=None) -
 
 async def save_results_to_db(agent_result: str, meeting_text: str, db, meeting_id: str):
     """
-    Agent 결과를 DB에 저장하는 함수 (문제 해결된 버전)
-    
-    Args:
-        agent_result: Agent가 반환한 전체 결과
-        meeting_text: 원본 회의 내용
-        db: 데이터베이스 연결 객체
-        meeting_id: 회의 ID
+    Agent 결과를 DB에 저장하는 함수 (외부/내부 문서 분기)
+    - '외부 검색 결과' 멘트가 있으면 외부 문서로 저장
+    - 없으면 내부 문서로 저장
     """
+    from app.services.tagging import save_prompt_log
+    from datetime import datetime
+    import os
+    from urllib.parse import urlparse
+
     print("[DB 저장] Agent 결과를 DB에 저장 중...")
     print(f"[DEBUG] Agent 결과 길이: {len(agent_result)} 문자")
     print(f"[DEBUG] Meeting ID: {meeting_id}")
-    
-    # 중복 방지를 위한 세트 (title, link 조합으로 중복 체크)
+
     saved_documents = set()
-    
+    docs_results = []
+    search_results = []
+
     try:
-        # Agent 결과 파싱 개선
-        print("[DEBUG] Agent 결과 파싱 시작...")
-        
-        # 키워드별 섹션을 더 정확하게 파싱
+        # Agent 결과에서 키워드별 섹션 파싱
         sections = []
         lines = agent_result.split('\n')
         current_section = ""
         current_keyword = ""
-        
         for line in lines:
-            # 키워드 라인 감지 (다양한 패턴 고려)
             if line.strip().startswith('키워드:') or 'keyword:' in line.lower():
-                # 이전 섹션 저장
                 if current_keyword and current_section:
                     sections.append((current_keyword, current_section))
-                
-                # 새 키워드 시작
                 current_keyword = line.replace('키워드:', '').replace('keyword:', '').strip()
                 current_section = ""
-                print(f"[DEBUG] 키워드 발견: {current_keyword}")
             else:
                 current_section += line + '\n'
-        
-        # 마지막 섹션 추가
         if current_keyword and current_section:
             sections.append((current_keyword, current_section))
-        
-        print(f"[DEBUG] 총 {len(sections)}개 섹션 파싱됨")
-        
-        # 섹션이 없으면 전체 텍스트에서 문서 정보 추출 시도
         if not sections:
-            print("[DEBUG] 섹션 파싱 실패, 전체 텍스트에서 문서 추출 시도...")
-            documents = extract_document_info_from_output(agent_result)
-            if documents:
-                sections = [("일반", agent_result)]
-                print(f"[DEBUG] 전체 텍스트에서 {len(documents)}개 문서 발견")
-        
-        # 각 섹션 처리
+            sections = [("일반", agent_result)]
+
         saved_count = 0
         for i, (keyword, section_content) in enumerate(sections):
             print(f"[DEBUG] 섹션 {i+1}/{len(sections)} 처리 중: 키워드='{keyword}'")
-            
-            try:
-                # 문서 정보 추출
-                documents = extract_document_info_from_output(section_content)
-                print(f"[DEBUG] 키워드 '{keyword}'에서 {len(documents)}개 문서 추출됨")
-                
-                if documents:
-                    for j, doc in enumerate(documents):
-                        print(f"[DEBUG] 문서 {j+1}/{len(documents)} 처리 중...")
-                        
-                        title = doc.get("title", "").strip()
-                        link = doc.get("download_url", "").strip()
-                        similarity_score = doc.get("similarity_score", 0)
-                        relevance_reason = doc.get("relevance_reason", "").strip()
-                        
-                        print(f"[DEBUG] 문서 정보: title='{title}', link='{link}', score={similarity_score}")
-                        
-                        # 중복 체크 - title과 link 조합으로 체크
-                        doc_key = (title, link)
-                        if doc_key in saved_documents:
-                            print(f"[중복 스킵] 이미 저장된 문서: title='{title}', link='{link}'")
-                            continue
-                        
-                        if title:
-                            try:
-                                # DB 저장 시도
-                                print(f"[DEBUG] DB 저장 시도: meeting_id={meeting_id}, keyword={keyword}")
-                                
-                                # ref_interdoc_id 결정 로직 개선
-                                # 1. download_url이 있으면 그것을 사용
-                                # 2. download_url이 없으면 title을 사용하되, 구분을 위해 prefix 추가
-                                if link and link.startswith(('http://', 'https://')):
-                                    ref_interdoc_id = link
-                                    print(f"[DEBUG] URL을 ref_interdoc_id로 사용: {ref_interdoc_id}")
-                                else:
-                                    ref_interdoc_id = f"internal_doc:{title}"
-                                    print(f"[DEBUG] 파일명을 ref_interdoc_id로 사용: {ref_interdoc_id}")
-                                
-                                await insert_draft_log(
-                                    db=db,
-                                    meeting_id=meeting_id,
-                                    draft_ref_reason=keyword or "문서 추천",
-                                    ref_interdoc_id=ref_interdoc_id,
-                                    draft_title=title
-                                )
-                                
-                                # 중복 방지를 위해 저장된 문서 기록
-                                saved_documents.add(doc_key)
-                                saved_count += 1
-                                print(f"[저장 완료 {saved_count}] 키워드={keyword}, title={title}, ref_id={ref_interdoc_id}")
-                                
-                            except Exception as db_error:
-                                print(f"[DB 저장 오류] 키워드={keyword}, title={title}, 오류={db_error}")
-                                print(f"[DB 저장 오류 상세] 오류 타입: {type(db_error).__name__}")
-                                # DB 오류가 발생해도 다음 문서 계속 처리
-                                continue
-                        else:
-                            print(f"[저장 스킵] 키워드={keyword}, title 없음 (빈 문자열)")
-                else:
-                    print(f"[저장 스킵] 키워드={keyword}, 문서 정보 추출 실패")
-                    print(f"[DEBUG] 섹션 내용 (처음 200자): {section_content[:200]}...")
-                    
-            except Exception as section_error:
-                print(f"[섹션 처리 오류] 키워드={keyword}, 오류={section_error}")
-                print(f"[섹션 처리 오류 상세] 오류 타입: {type(section_error).__name__}")
+            documents = extract_document_info_from_output(section_content)
+            print(f"[DEBUG] 문서 추출 결과: {documents}")
+            if not documents:
+                print(f"[저장 스킵] 키워드={keyword}, 문서 정보 없음")
                 continue
-        
+            is_external = '외부 검색 결과' in section_content
+            for doc in documents:
+                if not isinstance(doc, dict):
+                    print(f"[저장 스킵] dict 타입이 아님: {doc}")
+                    continue
+                title = doc.get("title", "").strip()
+                link = doc.get("download_url", "").strip()
+                doc_key = (title, link)
+                if doc_key in saved_documents:
+                    print(f"[중복 스킵] 이미 저장된 문서: title='{title}', link='{link}'")
+                    continue
+                if is_external and link and link.startswith(('http://', 'https://')):
+                    # 외부 문서 저장
+                    try:
+                        print(f"[DEBUG] 외부 문서 DB 저장 시도: meeting_id={meeting_id}, keyword={keyword}")
+                        await insert_draft_log(
+                            db=db,
+                            meeting_id=meeting_id,
+                            draft_ref_reason=keyword or "외부 문서 검색",
+                            ref_interdoc_id=link,
+                            draft_title="외부 - 관련 자료 링크"
+                        )
+                        saved_documents.add(doc_key)
+                        saved_count += 1
+                        print(f"[저장 완료 {saved_count}] 외부 문서: keyword={keyword}, title={title}, ref_id={link}")
+                    except Exception as db_error:
+                        print(f"[DB 저장 오류] 외부 문서: keyword={keyword}, title={title}, 오류={db_error}")
+                        continue
+                elif not is_external and title:
+                    # 내부 문서 저장
+                    try:
+                        ref_interdoc_id = f"internal_doc:{title}"
+                        print(f"[DEBUG] 내부 문서 DB 저장 시도: meeting_id={meeting_id}, keyword={keyword}")
+                        await insert_draft_log(
+                            db=db,
+                            meeting_id=meeting_id,
+                            draft_ref_reason=keyword or "문서 추천",
+                            ref_interdoc_id=ref_interdoc_id,
+                            draft_title=title
+                        )
+                        saved_documents.add(doc_key)
+                        saved_count += 1
+                        print(f"[저장 완료 {saved_count}] 내부 문서: keyword={keyword}, title={title}, ref_id={ref_interdoc_id}")
+                    except Exception as db_error:
+                        print(f"[DB 저장 오류] 내부 문서: keyword={keyword}, title={title}, 오류={db_error}")
+                        continue
+                else:
+                    print(f"[저장 스킵] 키워드={keyword}, title 없음 (빈 문자열)")
         print(f"[DB 저장 완료] 총 {saved_count}개 문서 저장됨 (중복 제거됨)")
         print(f"[DEBUG] 저장된 문서 목록: {saved_documents}")
-        
-        if saved_count == 0:
-            print("[경고] 저장된 문서가 없습니다.")
-            print(f"[DEBUG] 원본 Agent 결과:")
-            print("=" * 50)
-            print(agent_result)
-            print("=" * 50)
-                
     except Exception as e:
         print(f"[DB 저장 전체 오류] {e}")
         print(f"[DB 저장 전체 오류 상세] 오류 타입: {type(e).__name__}")
         import traceback
         print(f"[DB 저장 전체 오류 스택트레이스]:")
         print(traceback.format_exc())
-        
-        # 롤백 시도
         try:
             if hasattr(db, 'rollback'):
                 await db.rollback()
@@ -462,7 +373,9 @@ def extract_document_info_from_output(output):
     Agent 출력에서 문서 정보를 추출하는 개선된 함수
     """
     print(f"[DEBUG extract_function] 입력 타입: {type(output)}")
-    print(f"[DEBUG extract_function] 입력 길이: {len(str(output))}")
+    # 내부 문서 변수
+    print(f"[DEBUG extract_function] 입력: {output}")
+    # print(f"[DEBUG extract_function] 입력 길이: {len(str(output))}")
     
     documents = []
     try:

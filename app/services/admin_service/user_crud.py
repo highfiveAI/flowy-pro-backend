@@ -18,13 +18,10 @@ from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# 로거 설정
 logger = logging.getLogger(__name__)
 
-# .env 파일에서 DB 설정 로드
 load_dotenv()
 
-# DB 연결 설정 (비동기)
 DB_URL = settings.CONNECTION_STRING.replace('postgresql://', 'postgresql+asyncpg://')
 engine = create_async_engine(
     DB_URL,
@@ -74,7 +71,7 @@ class UserCRUD:
             # 사용자 생성
             user = FlowyUser(**user_data)
             self.db.add(user)
-            await self.db.flush()  # user_id를 얻기 위해 flush
+            await self.db.flush()
 
             # 회원가입 이력 생성
             signup_log = SignupLog(
@@ -102,7 +99,6 @@ class UserCRUD:
             position = position_result.scalar_one_or_none()
             sysrole = sysrole_result.scalar_one_or_none()
 
-            # 응답 데이터 구성
             return {
                 "user_id": user.user_id,
                 "user_login_id": user.user_login_id,
@@ -152,17 +148,11 @@ class UserCRUD:
             results = result.all()
             print(f"조회된 사용자 수: {len(results)}")
             
-            # 결과를 딕셔너리 리스트로 변환
             users_with_status = []
             for user, signup_completed_status, company_name, position_name, sysrole_name in results:
                 try:
-                    # # print(f"\n사용자 정보 변환 시작 ----------------")
-                    # print(f"user_id: {user.user_id}")
-                    # print(f"signup_completed_status 타입: {type(signup_completed_status)}")
-                    # print(f"signup_completed_status 값: {signup_completed_status}")
-                    
+
                     status = "Pending" if signup_completed_status is None else signup_completed_status
-                    # print(f"최종 status 값: {status}")
                     
                     user_dict = {
                         "user_id": str(user.user_id),
@@ -182,15 +172,11 @@ class UserCRUD:
                         "sysrole_name": sysrole_name
                     }
                     
-                    # print(f"변환된 user_dict: {user_dict}")
-                    # print("사용자 정보 변환 완료 ----------------\n")
-                    
                     users_with_status.append(user_dict)
                 except Exception as e:
                     print(f"사용자 데이터 변환 중 오류 발생: {str(e)}, user_id: {user.user_id}")
                     continue
             
-            # print(f"전체 변환된 데이터: {users_with_status}")
             return users_with_status
             
         except Exception as e:
@@ -232,7 +218,6 @@ class UserCRUD:
             
             user, signup_completed_status, company_name, position_name, sysrole_name = user_result
             
-            # 결과를 딕셔너리로 변환
             user_dict = {
                 "user_id": str(user.user_id),
                 "user_login_id": user.user_login_id,
@@ -251,7 +236,6 @@ class UserCRUD:
                 "sysrole_name": sysrole_name
             }
             
-            print(f"사용자 조회 완료 - user_id: {user_id}")
             return user_dict
             
         except HTTPException:
@@ -266,7 +250,6 @@ class UserCRUD:
     async def update(self, user_id: UUID, user_data: dict) -> dict:
         """사용자 정보를 수정합니다."""
         try:
-            # 사용자 객체 직접 조회
             query = select(FlowyUser).filter(FlowyUser.user_id == user_id)
             result = await self.db.execute(query)
             user = result.scalar_one_or_none()
@@ -305,7 +288,6 @@ class UserCRUD:
             await self.db.commit()
             await self.db.refresh(user)
 
-            # 관련 정보 조회
             company_query = select(Company).filter(Company.company_id == user.user_company_id)
             position_query = select(CompanyPosition).filter(CompanyPosition.position_id == user.user_position_id)
             sysrole_query = select(Sysrole).filter(Sysrole.sysrole_id == user.user_sysrole_id)
@@ -321,7 +303,6 @@ class UserCRUD:
             sysrole = sysrole_result.scalar_one_or_none()
             signup_log = signup_log_result.scalar_one_or_none()
 
-            # 응답 데이터 구성
             return {
                 "user_id": user.user_id,
                 "user_login_id": user.user_login_id,
@@ -371,7 +352,6 @@ class UserCRUD:
         try:
             print(f"사용자 상태 변경 시작 - user_id: {user_id}, status: {status}")
             
-            # 사용자 존재 여부 확인
             query = select(FlowyUser).filter(FlowyUser.user_id == user_id)
             result = await self.db.execute(query)
             user = result.scalar_one_or_none()
@@ -382,7 +362,6 @@ class UserCRUD:
                     detail="사용자를 찾을 수 없습니다."
                 )
             
-            # 기존 signup_log가 있는지 확인
             signup_log_query = select(SignupLog).filter(SignupLog.signup_request_user_id == user_id)
             signup_log_result = await self.db.execute(signup_log_query)
             signup_log = signup_log_result.scalar_one_or_none()
@@ -404,7 +383,6 @@ class UserCRUD:
             
             await self.db.commit()
             
-            # 업데이트된 사용자 정보 반환
             return await self.get_by_id(user_id)
             
         except HTTPException:
@@ -497,7 +475,6 @@ class UserCRUD:
             raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
         admin_sysrole_id = await self.get_admin_sysrole_id()
         user_sysrole_id = await self.get_user_sysrole_id()
-        # 회사 ID가 없으면 대상 사용자로부터 추출
         if not company_id:
             company_id = user.user_company_id
         if force:
