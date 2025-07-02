@@ -94,9 +94,9 @@ async def chat_endpoint(request: QueryRequest):
 async def stream_chat(query: str):
     async def generate():
         async for chunk in run_agent_stream(query):
-            yield chunk
+            yield f"data: {chunk}\n\n"
         # 스트림 종료 신호
-        yield "data: \n\n"
+        yield "data: [DONE]\n\n"
     
     return StreamingResponse(generate(), media_type="text/event-stream", headers={
         "Cache-Control": "no-cache",

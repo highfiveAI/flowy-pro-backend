@@ -18,7 +18,7 @@ CONNECTION_STRING = settings.SYNC_CONNECTION_STRING
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/distiluse-base-multilingual-cased-v2")
 # 2. PGVector에 연결
 vector_store = PGVector(
-    collection_name="scenarios", 
+    collection_name="chatbot", 
     connection=CONNECTION_STRING,
     embeddings=embeddings, 
 )
@@ -51,6 +51,10 @@ You must provide appropriate responses based on the results obtained from using 
 If no relevant results are found using the tool, you should then generate an appropriate and helpful response using your own knowledge based on the user's question.
 You should not return empty strings (e.g., "") in the response.
 All responses must be in plain text format only - never return JSON, objects, or structured data.
+Even though you must perform a search, you should not include the retrieved information in your response if it is unrelated to the user’s question. Only use it when it is clearly relevant.
+If the user says something unclear or uses words you don't understand, politely respond that you are not sure what they mean and ask for clarification.
+Only use it when it is clearly relevant.
+If multiple pieces of information are retrieved, you must select only the most relevant parts and respond to the user using only the necessary information.
 """
 
 description = (
@@ -94,29 +98,34 @@ retriever = vector_store.as_retriever(search_kwargs={"k": 1})
 
 
 def custom_retriever_tool(query: str) -> str:
-    # 유사도 검색 + 점수 포함
-    results_with_score = vector_store.similarity_search_with_score(query=query, k=1)
+    results_with_score = vector_store.similarity_search_with_score(query=query, k=3)
 
     if not results_with_score:
         return "검색 결과를 찾을 수 없습니다."
 
-    doc, score = results_with_score[0]
-    print(f"🔎 유사도 점수: {score:.3f}")
+    THRESHOLD = 0.88
+    filtered_results = []
+    for doc, score in results_with_score:
+        print(f"유사도 점수: {score:.3f}")
+        print(f"문서 내용: {doc.page_content}")
+        if score <= THRESHOLD:
+            filtered_results.append((doc, score))
 
-    THRESHOLD = 0.88  # 유사도 기준
-    if score > THRESHOLD:
+    if not filtered_results:
         return "관련된 정보를 찾을 수 없습니다. 다른 키워드로 검색해보세요."
 
-    # 메타데이터에서 링크 정보 추출 (있는 경우)
-    link_info = ""
-    if hasattr(doc, 'metadata') and doc.metadata:
-        if 'link' in doc.metadata:
+    # 여러 개의 결과를 정리하여 plain text로 구성
+    responses = []
+    for idx, (doc, score) in enumerate(filtered_results, start=1):
+        description = doc.metadata.get("description", doc.page_content)
+        link_info = ""
+        if "link" in doc.metadata:
             link_info = f"\n참고 링크: {doc.metadata['link']}"
-        elif 'source' in doc.metadata:
+        elif "source" in doc.metadata:
             link_info = f"\n출처: {doc.metadata['source']}"
+        responses.append(f"{idx}. {description}{link_info}")
 
-    # 플레인 텍스트로 결과 반환
-    return f"{doc.page_content}{link_info}"
+    return "\n\n".join(responses)
 
 # retriever_tool = create_retriever_tool(
 #     retriever,
@@ -157,7 +166,7 @@ async def run_agent_stream(query: str, debug: bool = True):
                 if content and content != last_response:
                     new_part = content[len(last_response):]
                     for char in new_part:
-                        yield f"data: {char}\n\n"
+                        yield char
                         if not debug:
                             print(char, end="", flush=True)
                         await asyncio.sleep(0.02)
