@@ -191,7 +191,7 @@ async def run_stt_in_background(
 @router.post("/")
 async def stt_api(
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
+    file: UploadFile = File(..., description="지원 형식: flac, m4a, mp3, mp4, mpeg, mpga, oga, ogg, wav, webm"),
     project_id: str = Form(...),
     meeting_title: str = Form(...),
     meeting_agenda: str = Form(...),
@@ -207,6 +207,19 @@ async def stt_api(
     subject: str = Form(...),
     db: AsyncSession = Depends(get_db_session)
 ):
+    # 지원되는 오디오 형식 확인
+    SUPPORTED_AUDIO_FORMATS = {
+        'flac', 'm4a', 'mp3', 'mp4', 'mpeg', 'mpga', 'oga', 'ogg', 'wav', 'webm'
+    }
+    
+    if file.filename:
+        file_extension = file.filename.lower().split('.')[-1]
+        if file_extension not in SUPPORTED_AUDIO_FORMATS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"지원되지 않는 파일 형식입니다. 지원 형식: {', '.join(sorted(SUPPORTED_AUDIO_FORMATS))}"
+            )
+    
     import aiofiles
     temp_path = f"temp_{file.filename}"
     async with aiofiles.open(temp_path, "wb") as f:
