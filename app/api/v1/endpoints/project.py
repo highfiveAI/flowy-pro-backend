@@ -175,7 +175,8 @@ async def create_meeting_with_users(
                 user_id=user.user_id,
                 project_id=meeting_data.project_id,
                 title=meeting_data.meeting_title,
-                start=meeting_date_obj
+                start=meeting_date_obj,
+                meeting_id=meeting.meeting_id
             )
         return {"meeting_id": meeting.meeting_id}
     except Exception as e:

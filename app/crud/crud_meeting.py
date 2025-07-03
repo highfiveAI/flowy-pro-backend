@@ -273,3 +273,41 @@ async def get_role_id_by_user_and_project(db: AsyncSession, user_id: str, projec
     result = await db.execute(stmt)
     role_id = result.scalar_one_or_none()
     return str(role_id) if role_id else None
+
+async def update_meeting(
+    db: AsyncSession,
+    meeting_id: str,
+    meeting_title: str,
+    meeting_agenda: str,
+    meeting_date: datetime,
+    meeting_audio_path: str = None
+):
+    result = await db.execute(
+        select(Meeting).where(Meeting.meeting_id == meeting_id)
+    )
+    meeting = result.scalar_one_or_none()
+    if not meeting:
+        return None
+    meeting.meeting_title = meeting_title
+    meeting.meeting_agenda = meeting_agenda
+    meeting.meeting_date = meeting_date
+    meeting.meeting_audio_path = meeting_audio_path
+    await db.commit()
+    await db.refresh(meeting)
+    return meeting
+
+async def update_meeting_user(
+    db: AsyncSession,
+    meeting_user_id: str,
+    role_id: str
+):
+    result = await db.execute(
+        select(MeetingUser).where(MeetingUser.meeting_user_id == meeting_user_id)
+    )
+    meeting_user = result.scalar_one_or_none()
+    if not meeting_user:
+        return None
+    meeting_user.role_id = role_id
+    await db.commit()
+    await db.refresh(meeting_user)
+    return meeting_user
