@@ -4,9 +4,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.db_session import get_db_session
 from app.services.chatbot_service.scenario import agent
 from app.services.chatbot_service.chatbot_agent import run_agent
+from app.services.chatbot_service.agent_test_6 import run_agent_stream
 from typing import Union
 from app.services.chatbot_service.scenario_crud import search_similar_scenario
 from langchain.embeddings import HuggingFaceEmbeddings
+from fastapi.responses import StreamingResponse
 
 router = APIRouter()
 
@@ -88,3 +90,15 @@ async def chat_endpoint(request: QueryRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/chat/stream")
+async def stream_chat(query: str):
+    async def generate():
+        async for chunk in run_agent_stream(query):
+            yield f"data: {chunk}\n\n"
+        # 스트림 종료 신호
+        yield "data: [DONE]\n\n"
+    
+    return StreamingResponse(generate(), media_type="text/event-stream", headers={
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+    })

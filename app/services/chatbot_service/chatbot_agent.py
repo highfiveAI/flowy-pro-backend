@@ -40,7 +40,7 @@ llm = ChatGoogleGenerativeAI(
 # toolkit = SQLDatabaseToolkit(db=db, llm=llm)
 
 # tools = toolkit.get_tools()
-tools = []
+
 
 system_message = """
 You are an intelligent agent designed to interact with a vector database and provide context-aware responses.
@@ -139,9 +139,11 @@ retriever_tool = Tool.from_function(
     func=custom_retriever_tool
 )
 
+tools = [retriever_tool]
+
 async def run_agent(query: str):
-    if retriever_tool not in tools:
-        tools.append(retriever_tool)
+    # if retriever_tool not in tools:
+    #     tools.append(retriever_tool)
     agent = create_react_agent(llm, tools, prompt=system)
     last_response = None
     # docs = retriever.get_relevant_documents("What are my options in breathable fabric?")
@@ -155,5 +157,16 @@ async def run_agent(query: str):
     ):
        step["messages"][-1].pretty_print()
        last_response = step["messages"][-1].content
+    # async for step in agent.astream(
+    #     {"messages": [{"role": "user", "content": query}]},
+    #     stream_mode="values",
+    # ):
+    #     content = step["messages"][-1].content
+    #     if content and content != last_response:
+    #         new_part = content[len(last_response):]
+    #         for char in new_part:
+    #             yield f"data: {char}\n\n"
+    #             await asyncio.sleep(0.02)  # 타자 효과를 위한 딜레이
+    #         last_response = content
     
     return last_response
