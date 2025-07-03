@@ -16,6 +16,7 @@ from app.schemas.find_id import (
     VerifiedPwTokenPayload,
     PasswordChangeRequest,
     PasswordChangeResponse,
+    PasswordChangeEmailRequest,
 )
 from app.crud.crud_user import (
     create_user,
@@ -378,6 +379,55 @@ async def send_code_api(request: Request, payload: EmailRequest):
 
         # 2. 인증 코드 생성 및 전송 시도
         code = await send_verification_code(email)
+        if not code:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="인증 코드 생성에 실패했습니다."
+            )
+
+        # 3. 세션에 인증 코드 저장
+        try:
+            request.session['verify_code:{payload.email}'] = code
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="세션 저장 중 오류가 발생했습니다."
+            )
+
+        return {"message": "인증 코드가 전송되었습니다."}
+
+    except HTTPException as http_exc:
+        raise http_exc
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="인증 코드 전송 중 알 수 없는 오류가 발생했습니다."
+        )
+
+# 이메일 전송 라우터
+@router.post("/find_pw/send_code")
+async def send_code_api(
+    request: Request,
+    payload: PasswordChangeEmailRequest,
+    db: AsyncSession = Depends(get_db_session)
+):
+    try:
+        # 1. 이메일 형식은 Pydantic(EmailStr)에서 기본 검사됨
+        user = await get_user_by_login_id_and_email(db, payload.user_login_id, payload.email)
+        email = payload.email
+
+        is_verified = bool(user)
+        if not is_verified:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="아이디또는 이메일이 올바르지 않습니다."
+            )
+
+        # 2. 인증 코드 생성 및 전송 시도
+        code = await send_verification_code(email)
+        
+
         if not code:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
