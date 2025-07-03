@@ -61,6 +61,7 @@ async def insert_meeting_calendar(
     project_id: UUID,
     title: str,
     start: datetime,
+    meeting_id: UUID,
     calendar_type: str = "meeting",
     completed: bool = False,
     created_at: datetime = None,
@@ -78,7 +79,8 @@ async def insert_meeting_calendar(
         completed=completed,
         created_at=created_at or now,
         updated_at=updated_at or now,
-        status=status
+        status=status,
+        meeting_id=meeting_id
     )
     db.add(calendar)
     await db.commit()
@@ -160,7 +162,8 @@ async def insert_calendar_from_task(db: AsyncSession, task_assign_log: TaskAssig
             end=end_date,
             calendar_type="todo",
             created_at=datetime.utcnow(),
-            completed=False
+            completed=False,
+            meeting_id=meeting_id
         )
         db.add(new_entry)
         new_calendar_entries.append(new_entry)
@@ -257,7 +260,8 @@ async def update_calendar_from_todos(db: AsyncSession, meeting_id: UUID, updated
             end=end_date,
             calendar_type="todo",
             created_at=datetime.utcnow(),
-            completed=False
+            completed=False,
+            meeting_id=meeting_id
         )
         db.add(new_entry)
         new_calendar_entries.append(new_entry)
@@ -270,3 +274,26 @@ async def update_calendar_from_todos(db: AsyncSession, meeting_id: UUID, updated
         print(f"[update_calendar_from_todos] 일정 동기화 중 오류: {e}")
         return []
     return new_calendar_entries
+
+
+async def update_calendar_by_meeting_id(
+    meeting_id: UUID,
+    user_id: UUID,
+    title: str,
+    start: datetime,
+    updated_at: datetime,
+    db: AsyncSession
+) -> list:
+    result = await db.execute(
+        select(Calendar).where(Calendar.meeting_id == meeting_id)
+    )
+    calendars = result.scalars().all()
+    updated = []
+    for calendar in calendars:
+        calendar.user_id = user_id
+        calendar.title = title
+        calendar.start = start
+        calendar.updated_at = updated_at
+        updated.append(calendar)
+    await db.commit()
+    return updated
