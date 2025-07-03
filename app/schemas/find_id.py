@@ -24,3 +24,7 @@ class PasswordChangeRequest(BaseModel):
 class PasswordChangeResponse(BaseModel):
     success: bool
     message: str
+
+class PasswordChangeEmailRequest(BaseModel):
+    user_login_id: str
+    email: EmailStr

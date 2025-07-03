@@ -299,61 +299,115 @@ async def save_results_to_db(agent_result: str, meeting_text: str, db, meeting_i
         saved_count = 0
         for i, (keyword, section_content) in enumerate(sections):
             print(f"[DEBUG] 섹션 {i+1}/{len(sections)} 처리 중: 키워드='{keyword}'")
-            documents = extract_document_info_from_output(section_content)
-            print(f"[DEBUG] 문서 추출 결과: {documents}")
-            if not documents:
-                print(f"[저장 스킵] 키워드={keyword}, 문서 정보 없음")
-                continue
-            is_external = '외부 검색 결과' in section_content
-            for doc in documents:
-                if not isinstance(doc, dict):
-                    print(f"[저장 스킵] dict 타입이 아님: {doc}")
-                    continue
-                title = doc.get("title", "").strip()
-                link = doc.get("download_url", "").strip()
-                doc_key = (title, link)
-                if doc_key in saved_documents:
-                    print(f"[중복 스킵] 이미 저장된 문서: title='{title}', link='{link}'")
-                    continue
-                if is_external and link and link.startswith(('http://', 'https://')):
-                    # 외부 문서 저장
+            # 외부 검색 결과 분기
+            if '외부 검색 결과' in section_content:
+                # '외부 검색 결과:' 이후 줄에서 URL 추출
+                ext_links = []
+                ext_flag = False
+                for line in section_content.splitlines():
+                    if '외부 검색 결과' in line:
+                        ext_flag = True
+                        continue
+                    if ext_flag:
+                        # URL이 포함된 줄만 추출
+                        urls = [token for token in line.split() if token.startswith('http')]
+                        for url in urls:
+                            ext_links.append(url)
+                for url in ext_links:
                     try:
                         print(f"[DEBUG] 외부 문서 DB 저장 시도: meeting_id={meeting_id}, keyword={keyword}")
                         await insert_draft_log(
                             db=db,
                             meeting_id=meeting_id,
                             draft_ref_reason=keyword or "외부 문서 검색",
-                            ref_interdoc_id=link,
+                            ref_interdoc_id=url,
                             draft_title="외부 - 관련 자료 링크"
                         )
-                        saved_documents.add(doc_key)
                         saved_count += 1
-                        print(f"[저장 완료 {saved_count}] 외부 문서: keyword={keyword}, title={title}, ref_id={link}")
+                        print(f"[저장 완료 {saved_count}] 외부 문서: keyword={keyword}, ref_id={url}")
                     except Exception as db_error:
-                        print(f"[DB 저장 오류] 외부 문서: keyword={keyword}, title={title}, 오류={db_error}")
+                        print(f"[DB 저장 오류] 외부 문서: keyword={keyword}, 오류={db_error}")
                         continue
-                elif not is_external and title:
-                    # 내부 문서 저장
+                continue  # documents 저장하지 않음
+            else:
+                # 내부 문서만 저장
+                documents = extract_document_info_from_output(section_content)
+                print(f"[DEBUG] 문서 추출 결과: {documents}")
+                if not documents:
+                    print(f"[저장 스킵] 키워드={keyword}, 문서 정보 없음")
+                    continue
+                for doc in documents:
+                    if not isinstance(doc, dict):
+                        print(f"[저장 스킵] dict 타입이 아님: {doc}")
+                        continue
+                    title = doc.get("title", "").strip()
+                    link = doc.get("download_url", "").strip()
+                    if not title:
+                        print(f"[저장 스킵] 키워드={keyword}, title 없음 (빈 문자열)")
+                        continue
                     try:
-                        ref_interdoc_id = f"internal_doc:{title}"
                         print(f"[DEBUG] 내부 문서 DB 저장 시도: meeting_id={meeting_id}, keyword={keyword}")
                         await insert_draft_log(
                             db=db,
                             meeting_id=meeting_id,
                             draft_ref_reason=keyword or "문서 추천",
-                            ref_interdoc_id=ref_interdoc_id,
+                            ref_interdoc_id=link,
                             draft_title=title
                         )
-                        saved_documents.add(doc_key)
                         saved_count += 1
-                        print(f"[저장 완료 {saved_count}] 내부 문서: keyword={keyword}, title={title}, ref_id={ref_interdoc_id}")
+                        print(f"[저장 완료 {saved_count}] 내부 문서: keyword={keyword}, title={title}, ref_id={link}")
                     except Exception as db_error:
                         print(f"[DB 저장 오류] 내부 문서: keyword={keyword}, title={title}, 오류={db_error}")
                         continue
-                else:
-                    print(f"[저장 스킵] 키워드={keyword}, title 없음 (빈 문자열)")
         print(f"[DB 저장 완료] 총 {saved_count}개 문서 저장됨 (중복 제거됨)")
         print(f"[DEBUG] 저장된 문서 목록: {saved_documents}")
+                # ========== 프롬프트 로그 저장 ==========
+        current_time = datetime.now()
+        
+        # 내부 문서 (docs) 프롬프트 로그 저장
+        if documents:
+            docs_log_data = {
+                "internal_documents": documents,
+                "metadata": {
+                    "total_keywords": len(documents),
+                    "processing_time": current_time.isoformat()
+                }
+            }
+            await save_prompt_log(
+                db, 
+                meeting_id, 
+                "docs", 
+                docs_log_data,
+                input_date=current_time,
+                output_date=current_time
+            )
+            print(f"[프롬프트 로그] 내부 문서 결과 저장 완료: {len(documents)}개 키워드")
+        
+        # 외부 문서 (search) 프롬프트 로그 저장
+        if url:
+            search_log_data = {
+                "external_searches": url,
+                "metadata": {
+                    "total_searches": len(url),
+                    "processing_time": current_time.isoformat()
+                }
+            }
+            await save_prompt_log(
+                db, 
+                meeting_id, 
+                "search", 
+                search_log_data,
+                input_date=current_time,
+                output_date=current_time
+            )
+            print(f"[프롬프트 로그] 외부 검색 결과 저장 완료: {len(url)}개 검색")
+        
+        if saved_count == 0:
+            print("[경고] 저장된 문서가 없습니다.")
+            print(f"[DEBUG] 원본 Agent 결과:")
+            print("=" * 50)
+            print(agent_result)
+            print("=" * 50)
     except Exception as e:
         print(f"[DB 저장 전체 오류] {e}")
         print(f"[DB 저장 전체 오류 상세] 오류 타입: {type(e).__name__}")

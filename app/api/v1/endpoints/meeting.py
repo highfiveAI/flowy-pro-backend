@@ -14,6 +14,7 @@ from app.models.flowy_user import FlowyUser
 from app.schemas.meeting import PendingMeetingResponse, AcceptMeetingRequest, RejectMeetingRequest
 from app.schemas.signup_info import TokenPayload
 from app.crud.crud_meeting import get_prompt_logs_by_meeting, get_all_prompt_logs
+from app.services.calendar_service.calendar_crud import insert_meeting_calendar
 
 router = APIRouter()
 
@@ -146,22 +147,18 @@ async def accept_meeting(
         if meeting_start.tzinfo is not None:
             meeting_start = meeting_start.replace(tzinfo=None)
             
-        calendar_entry = Calendar(
+        calendar_entry = await insert_meeting_calendar(
+            db=db,
             user_id=user_id,
             project_id=agent_meeting.project_id,
             title=accept_request.meeting_title or agent_meeting.meeting_title,
             start=meeting_start,
-            end=None,  # 종료 시간은 선택적
+            meeting_id=agent_meeting.meeting_id,  # meeting_id 명시적으로 전달
             calendar_type="meeting",
             completed=False,
             created_at=datetime.datetime.now(),
-            agent_meeting_id=str(meeting_id),  # 원본 회의 ID 저장
-            # status="active"
+            status="active"
         )
-        
-        db.add(calendar_entry)
-        await db.commit()
-        await db.refresh(calendar_entry)
         
         # ✅ 후속회의(agent_meeting_id) 업데이트
         followup_meeting_stmt = select(Meeting).where(Meeting.meeting_id == agent_meeting_id)
@@ -246,22 +243,18 @@ async def reject_meeting(
         if meeting_start.tzinfo is not None:
             meeting_start = meeting_start.replace(tzinfo=None)
             
-        calendar_entry = Calendar(
+        calendar_entry = await insert_meeting_calendar(
+            db=db,
             user_id=user_id,
             project_id=agent_meeting.project_id,
             title=f"[거부됨] {agent_meeting.meeting_title}",
             start=meeting_start,
-            end=None,
+            meeting_id=agent_meeting.meeting_id,  # meeting_id 명시적으로 전달
             calendar_type="meeting",
             completed=False,
             created_at=datetime.datetime.now(),
-            agent_meeting_id=str(meeting_id),  # 원본 회의 ID 저장
             status="rejected"
         )
-        
-        db.add(calendar_entry)
-        await db.commit()
-        await db.refresh(calendar_entry)
         
         # ✅ 후속회의(agent_meeting_id) 제목 업데이트 (삭제 대신)
         agent_meeting.meeting_title = f"[거부됨] {agent_meeting.meeting_title}"
