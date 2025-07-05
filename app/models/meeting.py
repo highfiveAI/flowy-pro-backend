@@ -23,3 +23,4 @@ class Meeting(Base):
     draft_logs = relationship("DraftLog", back_populates="meeting")
     feedbacks = relationship("Feedback", back_populates="meeting")
     prompt_logs = relationship("PromptLog", back_populates="meeting")   
+    calendars = relationship("Calendar", back_populates="meeting")

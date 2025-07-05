@@ -70,7 +70,7 @@ async def send_meeting_email(meeting_info):
         안녕하세요, {name}님 FLOWY입니다.<br><br>
         {meeting_info['dt']}에 진행된 '{meeting_info['subj']}' 회의 분석이 완료되었습니다.<br><br>
         회의의 주요 내용과 논의 결과는 회의 관리에서 보실 수 있습니다.<br><br>
-        <a href='http://localhost:5173/dashboard/{meeting_info['meeting_id']}'>http://localhost:5173/dashboard/{meeting_info['meeting_id']}</a><br><br>
+        <a href='http://www.flowyproapi.com/dashboard/{meeting_info['meeting_id']}'>http://www.flowyproapi.com/dashboard/{meeting_info['meeting_id']}</a><br><br>
         감사합니다.<br><br>
         Flowy pro 드림
         """
@@ -88,7 +88,7 @@ async def send_signup_email_to_admin(user_info, admin_emails):
     안녕하세요, Flowy Pro 입니다.<br><br>
     '{user_info['name']}({user_info['user_login_id']})'님의 신규 회원가입 요청으로 알림 메일 드립니다.<br><br>
     회원가입 승인 여부를 확인해주세요.<br><br>
-    <a href='http://localhost:5173/admin/user'>http://localhost:5173/admin/user</a><br><br>
+    <a href='http://www.flowyproapi.com/admin/user'>http://www.flowyproapi.com/admin/user</a><br><br>
     감사합니다.<br>
     Flowy pro 드림
     """
@@ -167,7 +167,7 @@ async def send_meeting_update_email(meeting_info):
         • 회의 피드백 보기<br>
         • 회의 전체 역할 분담<br>
         • 관련 추천 문서<br><br>
-        👉 전체 회의 분석 결과 보기: <a href='http://localhost:5173/dashboard/{meeting_id}'>회의 분석 결과 바로가기</a><br>
+        👉 전체 회의 분석 결과 보기: <a href='http://www.flowyproapi.com/dashboard/{meeting_id}'>회의 분석 결과 바로가기</a><br>
         <br>---<br><br>
         감사합니다.<br>
         Flowy Pro 드림
@@ -235,7 +235,7 @@ async def send_meeting_email_without_update(meeting_info):
         안녕하세요, Flowy Pro 입니다.<br><br>
         '{datetime_str}'에 진행한 '{meeting_info['subj']}'의 회의 분석 결과 입니다.<br>
         상세 분석 결과는 링크에서 확인하세요.<br>
-        <a href='http://localhost:5173/dashboard/{meeting_info.get('meeting_id', '')}'>회의 분석 결과 바로가기</a><br>
+        <a href='http://www.flowyproapi.com/dashboard/{meeting_info.get('meeting_id', '')}'>회의 분석 결과 바로가기</a><br>
         <br>---<br><br>
         감사합니다.<br>
         Flowy Pro 드림

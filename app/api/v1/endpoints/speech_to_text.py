@@ -12,17 +12,19 @@ from pydantic import BaseModel, UUID4
 from datetime import datetime
 from sqlalchemy.orm import Session
 from app.db.db_session import get_db_session
-from app.crud.crud_meeting import insert_meeting, insert_meeting_user, get_project_meetings, insert_prompt_log
+from app.crud.crud_meeting import insert_meeting, insert_meeting_user, get_project_meetings, insert_prompt_log, update_meeting_user, update_meeting
 from app.models.project_user import ProjectUser
 from app.models.flowy_user import FlowyUser
 from app.models.role import Role
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.meeting import Meeting
-from app.services.calendar_service.calendar_crud import insert_meeting_calendar
+from app.services.calendar_service.calendar_crud import insert_meeting_calendar, update_calendar_by_meeting_id
 from app.services.notify_email_service import send_meeting_update_email, send_meeting_email_without_update
 from fastapi.responses import JSONResponse
 import mutagen
+from app.models.calendar import Calendar
+from app.models.meeting_user import MeetingUser
 
 router = APIRouter()
 
@@ -48,6 +50,7 @@ def parse_attendees(
 async def run_stt_in_background(
     temp_path: str,
     project_id: str,
+    meeting_id: str,
     meeting_title: str,
     meeting_agenda: str,
     meeting_date: str,
@@ -114,14 +117,44 @@ async def run_stt_in_background(
         meeting_date_obj = datetime.strptime(meeting_date, "%Y-%m-%d %H:%M:%S")
         HOST_ROLE_ID = "20ea65e2-d3b7-4adb-a8ce-9e67a2f21999"
         ATTENDEE_ROLE_ID = "a55afc22-b4c1-48a4-9513-c66ff6ed3965"
-        meeting = await insert_meeting(
-            db=db,
-            project_id=project_id,
-            meeting_title=meeting_title,
-            meeting_agenda=meeting_agenda,
-            meeting_date=meeting_date_obj,
-            meeting_audio_path=temp_path
-        )
+        # meeting_id를 항상 str로 변환해서 체크
+        if not meeting_id or str(meeting_id).strip() == '':
+            # meeting insert
+            meeting = await insert_meeting(
+                db=db,
+                project_id=project_id,
+                meeting_title=meeting_title,
+                meeting_agenda=meeting_agenda,
+                meeting_date=meeting_date_obj,
+                meeting_audio_path=temp_path
+            )
+            meeting_id = meeting.meeting_id
+        else:
+            # meeting update
+            existing_meeting = await db.execute(
+                select(Meeting).where(Meeting.meeting_id == meeting_id)
+            )
+            meeting_obj = existing_meeting.scalar_one_or_none()
+            if meeting_obj:
+                await update_meeting(
+                    db=db,
+                    meeting_id=meeting_id,
+                    meeting_title=meeting_title,
+                    meeting_agenda=meeting_agenda,
+                    meeting_date=meeting_date_obj,
+                    meeting_audio_path=temp_path
+                )
+                meeting = meeting_obj
+            else:
+                meeting = await insert_meeting(
+                    db=db,
+                    project_id=project_id,
+                    meeting_title=meeting_title,
+                    meeting_agenda=meeting_agenda,
+                    meeting_date=meeting_date_obj,
+                    meeting_audio_path=temp_path
+                )
+                meeting_id = meeting.meeting_id
         all_ids = [host_id] + list(ids)
         all_names = [host_name] + list(names)
         all_emails = [host_email] + list(emails)
@@ -133,19 +166,72 @@ async def run_stt_in_background(
             user_obj = user.scalar_one_or_none()
             if not user_obj:
                 continue
-            await insert_meeting_user(
-                db=db,
-                meeting_id=meeting.meeting_id,
-                user_id=user_obj.user_id,
-                role_id=role_id
-            )
-            await insert_meeting_calendar(
-                db=db,
-                user_id=user_obj.user_id,
-                project_id=meeting.project_id,
-                title=meeting_title,
-                start=meeting_date_obj
-            )
+            # meeting_user도 update/insert 분기
+            if not meeting_id or str(meeting_id).strip() == '':
+                # meeting_id가 빈 값이면 insert만 실행
+                await insert_meeting_user(
+                    db=db,
+                    meeting_id=meeting.meeting_id,
+                    user_id=user_obj.user_id,
+                    role_id=role_id
+                )
+            else:
+                # meeting_id가 있으면 update/insert 분기
+                existing_meeting_user = await db.execute(
+                    select(MeetingUser).where(
+                        MeetingUser.meeting_id == meeting.meeting_id,
+                        MeetingUser.user_id == user_obj.user_id
+                    )
+                )
+                meeting_user_obj = existing_meeting_user.scalar_one_or_none()
+                if meeting_user_obj:
+                    await update_meeting_user(
+                        db=db,
+                        meeting_user_id=meeting_user_obj.meeting_user_id,
+                        role_id=role_id
+                    )
+                else:
+                    await insert_meeting_user(
+                        db=db,
+                        meeting_id=meeting.meeting_id,
+                        user_id=user_obj.user_id,
+                        role_id=role_id
+                    )
+            # calendar도 update/insert 분기
+            if not meeting_id or str(meeting_id).strip() == '':
+                # insert
+                await insert_meeting_calendar(
+                    db=db,
+                    user_id=user_obj.user_id,
+                    project_id=meeting.project_id,
+                    title=meeting_title,
+                    start=meeting_date_obj,
+                    meeting_id=meeting.meeting_id,
+                )
+            else:
+                # update
+                calendar = await db.execute(
+                    select(Calendar).where(Calendar.meeting_id == meeting_id)
+                )
+                calendar_obj = calendar.scalars().all()
+                if calendar_obj:
+                    await update_calendar_by_meeting_id(
+                        meeting_id=meeting_id,
+                        user_id=user_obj.user_id,
+                        title=meeting_title,
+                        start=meeting_date_obj,
+                        updated_at=datetime.now(),
+                        db=db
+                    )
+                else:
+                    await insert_meeting_calendar(
+                        db=db,
+                        user_id=user_obj.user_id,
+                        project_id=meeting.project_id,
+                        title=meeting_title,
+                        start=meeting_date_obj,
+                        meeting_id=meeting_id,
+                    )
         stt_result = await stt_from_file(temp_path)
         chunks = stt_result.get("chunks")
         if not chunks:
@@ -193,6 +279,7 @@ async def stt_api(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(..., description="지원 형식: flac, m4a, mp3, mp4, mpeg, mpga, oga, ogg, wav, webm"),
     project_id: str = Form(...),
+    meeting_id: str = Form(...),
     meeting_title: str = Form(...),
     meeting_agenda: str = Form(...),
     meeting_date: str = Form(...),
@@ -207,6 +294,24 @@ async def stt_api(
     subject: str = Form(...),
     db: AsyncSession = Depends(get_db_session)
 ):
+    print("[stt_api] ====== 입력 파라미터 디버깅 ======")
+    print(f"file.filename: {file.filename}")
+    print(f"project_id: {project_id}")
+    print(f"meeting_id: {meeting_id}")
+    print(f"meeting_title: {meeting_title}")
+    print(f"meeting_agenda: {meeting_agenda}")
+    print(f"meeting_date: {meeting_date}")
+    print(f"host_id: {host_id}")
+    print(f"host_name: {host_name}")
+    print(f"host_email: {host_email}")
+    print(f"host_role: {host_role}")
+    print(f"attendees_ids: {attendees_ids}")
+    print(f"attendees_name: {attendees_name}")
+    print(f"attendees_email: {attendees_email}")
+    print(f"attendees_role: {attendees_role}")
+    print(f"subject: {subject}")
+    print("[stt_api] ==================================")
+    
     # 지원되는 오디오 형식 확인
     SUPPORTED_AUDIO_FORMATS = {
         'flac', 'm4a', 'mp3', 'mp4', 'mpeg', 'mpga', 'oga', 'ogg', 'wav', 'webm'
@@ -229,6 +334,7 @@ async def stt_api(
         run_stt_in_background,
         temp_path,
         project_id,
+        meeting_id,
         meeting_title,
         meeting_agenda,
         meeting_date,
