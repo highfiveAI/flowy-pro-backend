@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.db_session import get_db_session
 from app.services.chatbot_service.scenario import agent
 from app.services.chatbot_service.chatbot_agent import run_agent
-from app.services.chatbot_service.agent_test_6 import run_agent_stream
+from app.services.chatbot_service.chatbot_agent_astream import run_agent_stream
 from typing import Union
 from app.services.chatbot_service.scenario_crud import search_similar_scenario
 from langchain.embeddings import HuggingFaceEmbeddings
