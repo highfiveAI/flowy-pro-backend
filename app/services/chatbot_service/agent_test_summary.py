@@ -37,7 +37,12 @@ if not filtered_docs:
 
 # context를 입력 변수로 받는 prompt
 prompt = ChatPromptTemplate.from_messages(
-    [("system", "Write a concise summary of the following:\n\n{context}")]
+    [
+        # Gemini가 이해할 수 있도록 시스템 지시
+        ("system", "아래 문서를 간결하고 핵심만 추린 요약본으로 작성하세요."),
+        # 반드시 human(user) 역할이 하나 있어야 함
+        ("human", "{context}")
+    ]
 )
 
 # chain 생성
