@@ -6,6 +6,7 @@ from langchain.chains.combine_documents.reduce import (
     split_list_of_docs,
 )
 from langchain_core.documents import Document
+from app.core.config import settings
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.constants import Send
 from langgraph.graph import END, START, StateGraph
