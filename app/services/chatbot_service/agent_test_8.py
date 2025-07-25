@@ -16,6 +16,7 @@ llm = ChatGoogleGenerativeAI(
 )
 # search
 
+# 스키마
 # Pydantic
 class Joke(BaseModel):
     """Joke to tell user."""
