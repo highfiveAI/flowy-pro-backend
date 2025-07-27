@@ -11,8 +11,10 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.constants import Send
 from langgraph.graph import END, START, StateGraph
 
+# 토큰 개수
 token_max = 1000
 
+# api 세팅
 google_api_key = settings.GOOGLE_API_KEY
 
 # llm
