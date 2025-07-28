@@ -4,8 +4,10 @@ from langchain_community.document_loaders import WebBaseLoader
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.chains.combine_documents import create_stuff_documents_chain
 
+# 구글 api 키
 google_api_key = settings.GOOGLE_API_KEY
 
+# LLM 설정
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
     temperature=0,
